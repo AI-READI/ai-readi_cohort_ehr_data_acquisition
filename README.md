@@ -1,2 +1,4 @@
 # ai-readi_cohort_ehr_data_acquisition
-AI-READI participant's EHR data acquisition
+## Welcome to the AI-READI Cohort EHR Data Acquisition Workstream
+
+The AI-READI cohort consent form was obtained to facilitate the querying of EHR data. The cohort's EHR data is sourced from the following participating sites: UCSD, UAB, and UW. The longitudinal EHR data includes a five-year lookback period.
