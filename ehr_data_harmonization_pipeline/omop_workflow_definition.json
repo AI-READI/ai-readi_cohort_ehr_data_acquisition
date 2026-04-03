@@ -1,0 +1,664 @@
+{
+  "resources": {
+    "jobs": {
+      "ai_readi_ehr_omop_pipeline": {
+        "name": "AI-READI EHR OMOP Pipeline",
+        "email_notifications": {
+          "on_failure": [
+            "ychen634@jh.edu"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "databaseName",
+            "default": "jhu"
+          }
+        ],
+        "tasks": [
+          {
+            "task_key": "extraction_00_unziped_abfss",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/00-unzipped/00_unziped_abfss",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000
+          },
+          {
+            "task_key": "extraction_01_parsed",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/01-parsed/01_parsed",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "extraction_00_unziped_abfss"
+              }
+            ]
+          },
+          {
+            "task_key": "extraction_02_all_domain",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/02-clean/02_all_domain",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "extraction_01_parsed"
+              }
+            ]
+          },
+          {
+            "task_key": "prepare_03_all_domains",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/03-prepared/03_all_domains",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "extraction_02_all_domain"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_person",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/person",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "prepare_03_all_domains"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_location",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/location",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_person"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_care_site",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/care_site",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_location"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_provider",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/provider",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_care_site"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_visit_occurrence",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/visit_occurrence",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_provider"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_condition_occurrence",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/condition_occurrence",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_visit_occurrence"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_procedure_occurrence",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/procedure_occurrence",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_condition_occurrence"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_drug_exposure",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/drug_exposure",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_procedure_occurrence"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_device_exposure",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/device_exposure",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_drug_exposure"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_measurement",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/measurement",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_device_exposure"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_observation",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/observation",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_measurement"
+              }
+            ]
+          },
+          {
+            "task_key": "domain_mapping_death",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/04-domain-map/death",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_observation"
+              }
+            ]
+          },
+          {
+            "task_key": "id_check_05_all_domain",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/05-id-generation-check/05_all_domain",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "domain_mapping_death"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_person",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/person",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_check_05_all_domain"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_location",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/location",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_person"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_care_site",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/care_site",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_location"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_provider",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/provider",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_care_site"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_visit_occurrence",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/visit_occurrence",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_provider"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_condition_occurrence",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/condition_occurrence",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_visit_occurrence"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_procedure_occurrence",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/procedure_occurrence",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_condition_occurrence"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_drug_exposure",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/drug_exposure",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_procedure_occurrence"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_device_exposure",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/device_exposure",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_drug_exposure"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_measurement",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/measurement",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_device_exposure"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_observation",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/observation",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_measurement"
+              }
+            ]
+          },
+          {
+            "task_key": "id_generation_death",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/06-id-generation/death",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_observation"
+              }
+            ]
+          },
+          {
+            "task_key": "preclean_1_remove_person_id_key",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/07-preclean/1_remove_person_id_key",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "id_generation_death"
+              }
+            ]
+          },
+          {
+            "task_key": "preclean_2_all_domain",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/07-preclean/2_all_domain",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "preclean_1_remove_person_id_key"
+              }
+            ]
+          },
+          {
+            "task_key": "add_concept_name_08_all_domain",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/08-add-concept-name/08_all_domain",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "preclean_2_all_domain"
+              }
+            ]
+          },
+          {
+            "task_key": "health_check_09_all_domain",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/09-final-health-checks/09_all_domain",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "add_concept_name_08_all_domain"
+              }
+            ]
+          },
+          {
+            "task_key": "staging_10_all_domain",
+            "notebook_task": {
+              "notebook_path": "/Workspace/Shared/ai-readi-ehr-omop-pipeline/logic/10-staging/10_all_domain",
+              "base_parameters": {
+                "databaseName": "{{databaseName}}"
+              }
+            },
+            "existing_cluster_id": "1204-164130-gd3w52vy",
+            "timeout_seconds": 3600,
+            "retry_on_timeout": false,
+            "max_retries": 1,
+            "min_retry_interval_millis": 60000,
+            "depends_on": [
+              {
+                "task_key": "health_check_09_all_domain"
+              }
+            ]
+          }
+        ],
+        "format": "MULTI_TASK"
+      }
+    }
+  }
+}
