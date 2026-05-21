@@ -1,7 +1,7 @@
 # SQL Quality Control Checks for OMOP CDM.
 Useful code blocks that can be used to check for data quality.
 
-This appendix provides example SQL queries that may be useful for validating OMOP CDM ETL results, identifying orphan records, assessing data completeness, and evaluating fitness-for-use for Type 2 diabetes research.
+This page example SQL queries that may be useful for validating OMOP CDM ETL results, identifying orphan records, assessing data completeness, and evaluating fitness-for-use for Type 2 diabetes research.
 
 ---
 
