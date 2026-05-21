@@ -93,6 +93,8 @@ FROM (
 ```
 
 ## Minimum QC Before Declaring Data Fit-for-Use in AI-READI Research
+Type 2 diabetes patients should have records representing their diagnosis in the CONDITION_OCCURRENCE domain, laboratory measurements relevant to diabetes management (e.g., HbA1c and glucose) in the MEASUREMENT domain, and records of diabetes-related medications in the DRUG_EXPOSURE domain. The presence and appropriate linkage of these records should be verified as part of routine data quality assessment to ensure the data are fit for diabetes research and analytics.
+ 
 
 ### Preliminary Validation
 
