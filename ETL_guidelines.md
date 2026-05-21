@@ -153,3 +153,6 @@ Examples include:
 | Insulin | 45884660 |
 | Empagliflozin | 45774751 |
 | Dapagliflozin | 44785829 |
+
+### Useful SQL queries for data quality checks
+[Useful SQL Queries for Data Quality Checks Prior to Submission of ETL-Processed Datasets to the AI-READI EHR Hub.](https://github.com/AI-READI/ai-readi_cohort_ehr_data_acquisition/blob/main/useful_qc_check_code_blocks.md)
