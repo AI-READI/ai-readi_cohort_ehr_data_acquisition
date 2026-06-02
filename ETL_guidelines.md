@@ -92,6 +92,8 @@ FROM (
 );
 ```
 #### Check for Orphans
+
+```sql
 SELECT person_id 
 FROM PERSON
 EXCEPT SELECT DISTINCT person_id 
@@ -104,7 +106,9 @@ SELECT person_id FROM procedure_occurrence
 UNION ALL SELECT person_id FROM measurement 
 UNION ALL SELECT person_id FROM drug_exposure 
 );
+```
 
+```sql
 SELECT visit_occurrence_id 
 FROM VISIT_OCCURRENCE 
 EXCEPT SELECT DISTINCT visit_occurrence_id 
