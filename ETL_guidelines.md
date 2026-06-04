@@ -126,7 +126,7 @@ SELECT visit_occurrence_id FROM observation
 ```
 Add automated warnings/alerts if any orphan IDs, unlinked PERSONs, or unlinked VISITs are found (log file, dashboard, or notification).
 
-Handling guidance:
+#### Handling guidance:
 Investigate source data and ETL mapping rules to understand why the reference is missing or why visits/persons are unlinked (mapping error, upstream missing record, filtering rules, timing issues, or legitimate non-clinical entities such as administrative scheduling).
 
 If the source truly lacks the referenced person/visit, do not create synthetic PERSON or VISIT records solely to satisfy the link; synthetic records can contaminate analyses.
