@@ -130,24 +130,27 @@ Add automated warnings/alerts if any orphan IDs, unlinked PERSONs, or unlinked V
 Investigate source data and ETL mapping rules to understand why the reference is missing or why visits/persons are unlinked (mapping error, upstream missing record, filtering rules, timing issues, or legitimate non-clinical entities such as administrative scheduling).
 
 If the source truly lacks the referenced person/visit, do not create synthetic PERSON or VISIT records solely to satisfy the link; synthetic records can contaminate analyses.
-Preferred options for orphans:
+##### Preferred options for orphans:
 Fix the ETL mapping so the fact row correctly links to an existing PERSON/VISIT, or
 Exclude the orphaned fact rows from the analytic CDM load and log them for review, or
 
 If retention is required for audit purposes, load the facts into a separate audit table that preserves the original IDs but is excluded from analytic cohorts.
-Preferred options for unlinked PERSON records:
+
+##### Preferred options for unlinked PERSON records:
 Keep them when they represent legitimate enrollments/administrative records needed for coverage, enrollment, or audit analyses; flag them clearly (e.g., via observation_period entries) so analysts can include/exclude them intentionally.
 
 If they are the result of ETL errors (duplicate/person creation mistakes), correct the ETL and remove or consolidate the records.
 Consider archiving truly inactive/unneeded PERSON rows to a non-analytic archive while preserving audit trails.
-Preferred options for unlinked VISIT records:
+
+##### Preferred options for unlinked VISIT records:
 Keep visits that are legitimate administrative/scheduling entries if they are needed for coverage or operational reporting, but flag them clearly so analysts can exclude them from clinical cohorts.
 
 If unlinked visits are due to ETL/mapping errors (visits created but encounter events not mapped), correct the mapping and either link the events or remove the empty visit records.
 Consider moving empty/unneeded VISIT_OCCURRENCE rows to an audit/archive area if they are not needed for analyses.
 
 If a decision is made to create placeholder records (only when justified and documented), flag them clearly (use a special source_concept_id, visit_source_value, or observation_period/visit flag) so downstream analysts can exclude them.
-Documentation & governance:
+
+##### Documentation & governance:
 
 Record all orphan/unlinked detections, root causes, and remediation actions in the ETL change log.
 
