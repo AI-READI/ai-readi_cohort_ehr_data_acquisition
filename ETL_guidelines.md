@@ -91,8 +91,8 @@ FROM (
     SELECT visit_occurrence_id FROM observation
 );
 ```
-#### Check for Orphans
-
+#### Check for Orphaned dangling foreign keys
+* orphaned/dangling foreign keys in the clinical tables
 ```sql
 SELECT visit_occurrence_id
 FROM (
@@ -110,21 +110,6 @@ EXCEPT
 SELECT visit_occurrence_id FROM VISIT_OCCURRENCE;
 ```
 
-```sql
-SELECT visit_occurrence_id 
-FROM VISIT_OCCURRENCE 
-EXCEPT SELECT DISTINCT visit_occurrence_id 
-FROM (SELECT visit_occurrence_id 
-FROM condition_occurrence 
-UNION ALL 
-SELECT visit_occurrence_id FROM procedure_occurrence 
-UNION ALL 
-SELECT visit_occurrence_id FROM measurement 
-UNION ALL 
-SELECT visit_occurrence_id FROM drug_exposure 
-UNION ALL 
-SELECT visit_occurrence_id FROM observation 
-);
 ```
 Add automated warnings/alerts if any orphan IDs, unlinked PERSONs, or unlinked VISITs are found (log file, dashboard, or notification).
 
