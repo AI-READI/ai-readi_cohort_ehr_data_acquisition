@@ -7,7 +7,7 @@ Orphan person/visit links are records that reference `PERSON` or `VISIT` entries
 - **Unlinked PERSONs** exist in the `PERSON` table but have no clinical records associated with them.
 - **Unlinked VISITs** exist in the `VISIT_OCCURRENCE` table but are not referenced by any clinical/domain tables.
 
-Orphans break referential integrity and do not provide useful analytic information. Unlinked PERSONs and VISITs generally have no analytic signal and can distort denominators or complicate visit-based analyses unless they represent legitimate administrative or enrollment records. ETL should detect all three kinds, investigate and fix mapping/source issues, and either exclude orphaned rows from the analytic CDM or move them to an audit table. For unlinked PERSONs and VISITs, keep if needed for coverage/audit (but flag), otherwise correct and archive/remove. Avoid creating synthetic PERSON/VISIT records unless necessary and clearly flagged.
+Orphans break referential integrity and do not provide useful analytic information. Unlinked PERSONs and VISITs generally have no analytic signal and can distort denominators or complicate visit-based analyses unless they represent legitimate administrative or enrollment records. ETL should detect all four checks, investigate and fix mapping/source issues, and either exclude orphaned rows from the analytic CDM or move them to an audit table. For unlinked PERSONs and VISITs, keep if needed for coverage/audit (but flag), otherwise correct and archive/remove. Avoid creating synthetic PERSON/VISIT records unless necessary and clearly flagged.
 
 ### Definition
 
