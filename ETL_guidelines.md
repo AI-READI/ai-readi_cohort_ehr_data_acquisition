@@ -71,7 +71,7 @@ FROM (
     SELECT person_id FROM drug_exposure
 );
 ```
-####  orphaned person/dangling foreign keys issue
+####  Check for Orphaned dangling foreign keys (person_id)
 * a clinical record referencing a person_id that doesn't exist in PERSON
 ```sql
 SELECT person_id
