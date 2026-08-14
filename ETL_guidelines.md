@@ -69,6 +69,8 @@ FROM (
     SELECT person_id FROM measurement
     UNION ALL
     SELECT person_id FROM drug_exposure
+    UNION ALL 
+    SELECT person_id FROM observation
 );
 ```
 ####  Check for Orphaned dangling foreign keys (person_id)
