@@ -113,7 +113,7 @@ FROM (
     SELECT visit_occurrence_id FROM observation
 );
 ```
-#### Check for Orphaned dangling foreign keys
+#### Check for Orphaned dangling foreign keys (visit_occurrence_id)
 * orphaned/dangling foreign keys in the clinical tables
 ```sql
 SELECT visit_occurrence_id
