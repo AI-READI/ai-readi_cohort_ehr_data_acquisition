@@ -71,6 +71,25 @@ FROM (
     SELECT person_id FROM drug_exposure
 );
 ```
+* a clinical record referencing a person_id that doesn't exist in PERSON
+```sql
+SELECT person_id
+FROM (
+    SELECT person_id FROM visit_occurrence
+    UNION ALL
+    SELECT person_id FROM condition_occurrence
+    UNION ALL
+    SELECT person_id FROM procedure_occurrence
+    UNION ALL
+    SELECT person_id FROM measurement
+    UNION ALL
+    SELECT person_id FROM drug_exposure
+    UNION ALL
+    SELECT person_id FROM observation
+) AS clinical_persons
+EXCEPT
+SELECT person_id FROM PERSON;
+```
 
 #### Check for Unlinked VISIT Records
 * no linked clinical events
