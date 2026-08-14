@@ -73,7 +73,7 @@ FROM (
 ```
 
 #### Check for Unlinked VISIT Records
-
+* no linked clinical events
 ```sql
 SELECT visit_occurrence_id
 FROM VISIT_OCCURRENCE
