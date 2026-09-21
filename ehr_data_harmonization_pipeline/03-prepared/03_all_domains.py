@@ -71,7 +71,3 @@ domains = [
 
 _ = [make_transform(*domain) for domain in domains]
 
-
-# COMMAND ----------
-
-

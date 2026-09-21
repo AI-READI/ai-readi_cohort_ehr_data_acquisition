@@ -105,10 +105,23 @@ def apply_schema(df, schema_dict, include_payload=True):
                 )
             
             # Step 5: Cast to the target type with safe handling for numeric types
+            # if col_type == T.LongType():
+            #     # Use try_cast for BIGINT to handle malformed data like '50379226.0'
+            #     # df = df.withColumn(col_name, F.expr(f"try_cast(`{col_name}` as BIGINT)"))
+            #     df = df.withColumn(col_name, F.expr(f"CAST(CAST(`{col_name}` AS DOUBLE) AS BIGINT)"))
             if col_type == T.LongType():
-                # Use try_cast for BIGINT to handle malformed data like '50379226.0'
-                # df = df.withColumn(col_name, F.expr(f"try_cast(`{col_name}` as BIGINT)"))
-                df = df.withColumn(col_name, F.expr(f"CAST(CAST(`{col_name}` AS DOUBLE) AS BIGINT)"))
+                df = df.withColumn(
+                    col_name,
+                    F.expr(f"""
+                        CASE
+                            WHEN `{col_name}` RLIKE '^-?[0-9]+$' 
+                                THEN try_cast(`{col_name}` AS BIGINT)
+                            WHEN `{col_name}` RLIKE '^-?[0-9]+\\\\.0+$' 
+                                THEN try_cast(regexp_extract(`{col_name}`, '^(-?[0-9]+)', 1) AS BIGINT)
+                            ELSE NULL
+                        END
+                    """)
+                )
             elif col_type == T.IntegerType():
                 # Use try_cast for INT to handle malformed data
                 df = df.withColumn(col_name, F.expr(f"try_cast(`{col_name}` as INT)"))

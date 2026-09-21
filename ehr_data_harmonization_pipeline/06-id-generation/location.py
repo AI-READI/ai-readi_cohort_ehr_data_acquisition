@@ -5,8 +5,9 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Cell 2
 dbutils.widgets.removeAll()
-dbutils.widgets.text("site", "", "Sites")
+dbutils.widgets.text("site", "UAB", "Sites")
 databaseName = dbutils.widgets.get("site") + '_ingestion'
 print(databaseName)
 

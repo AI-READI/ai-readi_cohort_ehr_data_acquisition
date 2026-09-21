@@ -233,7 +233,7 @@ schema_dict = {
         "observation_datetime",
         "observation_type_concept_id",
         "value_as_number",
-       # "value_as_string",
+        "value_as_string",
         "value_as_concept_id",
         "qualifier_concept_id",
         "unit_concept_id",

@@ -13,6 +13,10 @@ print(databaseName)
 
 # COMMAND ----------
 
+print(databaseName)
+
+# COMMAND ----------
+
 spark.sql(f"""
     CREATE OR REPLACE TABLE {databaseName}.06_care_site AS
 
