@@ -17,7 +17,7 @@ The queries are organized into dashboard tabs and are designed to provide:
 
 - These SQL queries support dashboard reporting and data quality monitoring for the EHR Union dataset. They include aggregate summaries, concept frequency counts, site-specific comparisons, record linkage checks, orphan record detection, demographic distributions, and outlier checks for dates, age, and visit duration.
 
-## Query Categories in the json file
+## Query Categories in the ehr_union_data_quality_dashboard_sql.json file
 
 The SQL queries in this repository are grouped into the following categories:
 
