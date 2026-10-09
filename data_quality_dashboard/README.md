@@ -1,5 +1,5 @@
 ## EHR Union Limit Dataset Data Quality Dashboard SQL Queries
-This repository contains SQL queries used to support the EHR Union Limit Dataset Data Quality Dashboard.
+This repository contains SQL queries used to support the EHR Union Limit Dataset Data Quality Dashboard implemented in MS Databricks environment.
 
 ### Tab Groups
 The queries are organized by dashboard tab groups such as:
