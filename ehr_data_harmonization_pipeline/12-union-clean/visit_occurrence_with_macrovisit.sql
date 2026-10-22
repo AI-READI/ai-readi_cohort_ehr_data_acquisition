@@ -110,4 +110,6 @@ select count(*) from ehr_union_clean.visit_occurrence_macrovisit
 
 -- COMMAND ----------
 
-
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.visit_occurrence_macrovisit AS
+SELECT * FROM ehr_union_clean.visit_occurrence_macrovisit
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);

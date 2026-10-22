@@ -1,4 +1,12 @@
 -- Databricks notebook source
+DROP SCHEMA IF EXISTS ehr_union_clean CASCADE;
+
+-- COMMAND ----------
+
+CREATE DATABASE IF NOT EXISTS ehr_union_clean
+
+-- COMMAND ----------
+
 CREATE OR REPLACE TABLE ehr_union_clean.death DEEP CLONE ehr_union.death;
 
 -- COMMAND ----------

@@ -21,7 +21,24 @@ where visit_occurrence_id  in (select distinct visit_occurrence_id from all_othe
 
 -- COMMAND ----------
 
-select count(*) from ehr_union_clean.visit_occurrence
+select count(distinct person_id) from ehr_union.person
+
+-- COMMAND ----------
+
+select count(distinct s.studyid) as distinct_person_cnt
+from omop_survey.airea_di_omop_data_2026_09_21 s
+inner join ehr_union.person p on s.studyid = p.person_id
+
+-- COMMAND ----------
+
+select p.person_id, data_partner_id
+from ehr_union.person p
+left join omop_survey.airea_di_omop_data_2026_09_21 s on p.person_id = s.studyid
+where s.studyid is null
+
+-- COMMAND ----------
+
+select * from omop_survey.person where person_id in (3002, 5223)
 
 -- COMMAND ----------
 
@@ -65,10 +82,87 @@ WHERE year_of_birth IS NOT NULL
 
 -- COMMAND ----------
 
-SELECT *
-FROM ehr_union_clean.person
-WHERE year_of_birth IS NOT NULL
-  AND (YEAR(CURRENT_DATE()) - year_of_birth) = 90
+-- Create the MacTel database and populate all tables for MacTel/LMRI participants
+DROP SCHEMA IF EXISTS ehr_union_clean_mactel CASCADE;
+CREATE DATABASE IF NOT EXISTS ehr_union_clean_mactel;
+
+-- Person
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.person AS
+SELECT * FROM ehr_union_clean.person
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Visit Occurrence
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.visit_occurrence AS
+SELECT * FROM ehr_union_clean.visit_occurrence
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- visit_occurrence_macrovisit
+-- CREATE OR REPLACE TABLE ehr_union_clean_mactel.visit_occurrence_macrovisit AS
+-- SELECT * FROM ehr_union_clean.visit_occurrence_macrovisit
+-- WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Condition Occurrence
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.condition_occurrence AS
+SELECT * FROM ehr_union_clean.condition_occurrence
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Device Exposure
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.device_exposure AS
+SELECT * FROM ehr_union_clean.device_exposure
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Drug Exposure
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.drug_exposure AS
+SELECT * FROM ehr_union_clean.drug_exposure
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Measurement
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.measurement AS
+SELECT * FROM ehr_union_clean.measurement
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Observation
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.observation AS
+SELECT * FROM ehr_union_clean.observation
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Procedure Occurrence
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.procedure_occurrence AS
+SELECT * FROM ehr_union_clean.procedure_occurrence
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Death
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.death AS
+SELECT * FROM ehr_union_clean.death
+WHERE person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001);
+
+-- Care Site 
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.care_site AS
+SELECT * FROM ehr_union_clean.care_site where care_site_id in (select care_site_id from ehr_union_clean.person where care_site_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001));
+
+-- Provider 
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.provider AS
+SELECT * FROM ehr_union_clean.provider where provider_id in (select provider_id from ehr_union_clean.visit_occurrence where care_site_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001));
+
+-- location 
+CREATE OR REPLACE TABLE ehr_union_clean_mactel.location AS
+SELECT * FROM ehr_union_clean.location where location_id in (select location_id from ehr_union_clean.person where person_id IN (3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001));
+
+-- COMMAND ----------
+
+-- drop certain person; update person table
+DELETE FROM ehr_union_clean.person
+WHERE person_id IN (
+2097,
+1537,
+8360,
+1116,
+2129,
+1750,
+1454,
+--MacTel/LMRI participants ID
+3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001
+)
 
 -- COMMAND ----------
 
@@ -247,7 +341,7 @@ select
   person_id,
   -- Null out sensitive columns
   year_of_birth,
-  null as month_of_birth,
+  month_of_birth,
   null as day_of_birth,
   null as birth_datetime,
   gender_concept_id,
@@ -271,8 +365,8 @@ where person_id in (select person_id from ehr_union_clean.person);
 create or replace table ehr_union_clean.death as
 select
   person_id,
-  null as death_date,
-  null as death_datetime,
+  death_date,
+  death_datetime,
   death_type_concept_id,
   cause_concept_id,
   cause_source_value,
