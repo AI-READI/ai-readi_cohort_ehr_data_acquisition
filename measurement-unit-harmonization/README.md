@@ -86,13 +86,9 @@ Records with no unit concept fell into three groups, handled in order:
 
 ![Records without a unit concept, by what they got](charts/unit_assignment.png)
 
-Some tests needed more than a unit:
-
-- **Body temperature** recorded in both °C and °F within one group: split by
-  value (under 45 is °C, over 80 is °F).
-- **Body weight**: one partner's "lb" records are ounces (median 2,847 = 80.7
-  kg), and another records weight in "fluid ounces". Both convert to kg, with
-  medians of 80-90 kg across partners.
+Body weight needed more than a unit: one partner's "lb" records are
+ounces (median 2,847 = 80.7 kg), and another records weight in "fluid
+ounces". Both convert to kg, with medians of 80-90 kg across partners.
 
 ## Records under the wrong concept
 
@@ -176,10 +172,8 @@ The notebooks, imported from these files:
 | E. Checks and review of the run | [E_review_outputs.sql](E_review_outputs.sql) |
 | F. Probes for review questions (optional) | [F_probes.sql](F_probes.sql) |
 
-Part A's first cells create the target table if it doesn't exist, fill
-the inferred columns for records that arrived with a unit, and fill
-`harmonized_measurement_concept_id`. Columns added to
-`ehr_union_clean.measurement`'s, and the numeric records each is empty for:
+Columns added to `ehr_union_clean.measurement`'s, and the numeric records
+each is empty for:
 
 | Column | Type | Contents | Empty for |
 |---|---|---|---|
@@ -197,11 +191,8 @@ The 786,850 records with no numeric value get
 when they arrived with a unit concept; the last four columns stay empty. Check E3 confirms
 that no numeric record with a unit is missing one of its columns.
 
-Open items and the state of the work are in
-[unit_inference_handoff.md](unit_inference_handoff.md); the earlier
-exploration queries are in [exploration_queries.md](exploration_queries.md).
-
 Every rule is a table in `ehr_union_clean_metrics` and every record carries
 `unit_inference_method`, so any assigned unit can be traced to the rule that
-set it. Notebook E holds the checks (all pass) and the reviews behind the
-numbers above.
+set it. How each part works, and open items, are in
+[unit_inference_handoff.md](unit_inference_handoff.md); the earlier
+exploration queries are in [exploration_queries.md](exploration_queries.md).

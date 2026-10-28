@@ -6,36 +6,22 @@ unit (or is marked unitless), a canonical unit, and a harmonized value.
 ## Tables
 
 - Source: `ehr_union_clean.measurement` (never modified)
-- Target: `hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized`
-  (full copy of measurement, 7,835,317 rows) plus these columns:
-  - `harmonized_measurement_concept_id`: the test as Parts A-D see it:
-    `measurement_concept_id`, or its replacement from
-    `measurement_concept_corrections` (below); 0 where the concept is NULL
-  - `unit_inference_method`: how the unit was decided (values below);
-    `copied_from_unit_concept_id` for records that arrived with a unit concept
-  - `inferred_unit_concept_id`, `inferred_unit_source_value`: the record's unit
-    (UCUM concept id and code), assigned or copied from `unit_concept_id`
-  - `canonical_unit_concept_id`, `canonical_unit_value`: the test's canonical
-    unit (concept id and UCUM code); set only where
-    `harmonized_value_as_number` is in it (NULL for unitless records)
-  - `harmonized_value_as_number`: value in the canonical unit, or
-    value_as_number for unitless records
-  - `unit_conversion_method`: Part D's conversion_method for the record
-- A cell 1 creates the table (`CREATE TABLE IF NOT EXISTS`) with all of these;
-  1b fills the inferred columns for records with a unit concept; 1d fills
-  `harmonized_measurement_concept_id`, and 1e checks the corrected records;
-  1f creates the view `measurement_unit_keyed` that C and D read. A view's
-  `SELECT *` is expanded when it is created, so 1f has to rerun whenever the
-  table is recreated. The table used to be
-  created by the Python in [exploration_queries.md](exploration_queries.md)
-  ("Target output table"), which lacks `harmonized_measurement_concept_id`,
-  `unit_inference_method` and `unit_conversion_method`; such a table has to
-  be dropped, since `IF NOT EXISTS` won't add them (README, "Setup and
-  running").
+- Target: `hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized`,
+  a full copy of measurement (7,835,317 rows) with added columns. The
+  README's column table lists them and which records each is empty for.
+- A cell 1 creates the table (`CREATE TABLE IF NOT EXISTS`); 1b fills the
+  inferred columns for records with a unit concept; 1d fills
+  `harmonized_measurement_concept_id` (0 where the concept is NULL), and 1e
+  checks the corrected records; 1f creates the view `measurement_unit_keyed`
+  that C and D read. A view's `SELECT *` is expanded when it is created, so
+  1f has to rerun whenever the table is recreated. A table made by the old
+  Python in [exploration_queries.md](exploration_queries.md) ("Target output
+  table") lacks three of the columns and has to be dropped (README, "Setup
+  and running").
 - Original `measurement_concept_id`, `unit_concept_id` and
-  `unit_source_value` are left untouched. A record's
-  effective unit is `COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id)`;
-  after 1b that's the same as `inferred_unit_concept_id`.
+  `unit_source_value` are left untouched. A record's effective unit is
+  `COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id)`; after 1b
+  that's the same as `inferred_unit_concept_id`.
 
 Decision and rule tables (all in `hive_metastore.ehr_union_clean_metrics`):
 `measurement_concept_corrections`, `unit_concept_rules`, `unit_inference_range_decisions`, `unit_source_name_rules`,
@@ -63,30 +49,27 @@ Run in letter order. Cell numbers run on across the parts (Part A ends at
   records), each with its expected result. A change to one of those
   queries in A-D has to be copied here.
 - [F_probes.sql](F_probes.sql): read-only probes for review questions (F4
-  is the evidence for the concept correction below); nothing in A-E
-  depends on it.
+  is the evidence for the concept correction); nothing in A-E depends on
+  it.
 
-[exploration_queries.md](exploration_queries.md) is the earlier exploration:
-the original list of diabetes-related tests that were to get inferred units,
-the target table's creation, and sizing queries, in `<details>` blocks. It
-also holds the "Why every test, not the diabetes list" section, moved out of
-the README so the README stays on results.
+[exploration_queries.md](exploration_queries.md) is the earlier
+exploration: the original list of diabetes-related tests, the old table
+creation and sizing queries, in `<details>` blocks, and the "Why every
+test, not the diabetes list" section.
 
 ## Done
 
+Counts by part and method, and where every record ended up, are in the
+README's tables (E1 and 20a of the last run). This section is how each
+part works.
+
 **Concept correction** (Part A, cell 1d). `measurement_concept_corrections`
 maps a concept to the one its records really hold; Parts A-D group by the
-result, `harmonized_measurement_concept_id`. One rule: 3023884
-"Cholesterol in HDL/Cholesterol.total [Mass Ratio]" -> 3011163
-"Cholesterol.total/Cholesterol in HDL [Mass Ratio]". Its 6,464 records
-(partner 3058) run 1.5-34.3, median 3.5, and HDL/total can't exceed 1.
-F_probes cell F4 matched each record against the same person's same-day
-total cholesterol and HDL: 6,454 of 6,457 Part C records, 5 of 6 Part A
-records and the one record that arrived with a unit equal total/HDL within
-10%; the other 4 have no same-day lipids. Partner 2084's 3011163 records and
-3058's concept-0 "Cholesterol/HDL Ratio" match the same way. Check 1e flags
-corrected records at or below 1 (`implausible_max`). The one corrected
-record that arrived labeled mg/dL is relabeled to {ratio} in 17d.
+result, `harmonized_measurement_concept_id`. One rule, 3023884 -> 3011163;
+the evidence (F4) is in the README's "Records under the wrong concept".
+Check 1e flags corrected records at or below the rule's `implausible_max`.
+The one corrected record that arrived labeled mg/dL is relabeled to
+{ratio} in 17d.
 
 **Units for dimensionless quantities.** Records that have a UCUM unit get
 it, though it's dimensionless: pH `pH` (8482); ratios, INR, S/CO and the
@@ -102,51 +85,28 @@ new code its own base in `unit_factors`, so `{ratio}`, `{calc}` and
 an index. (A code with no factor row would also work: it's its own class
 and converts to itself.)
 
-**Part A.** Numeric records with no unit string and no unit concept, but with a
-reference range: 205,212 records.
+**Part A** (no unit string or concept, but a reference range). Concept
+groups (cells 2-6) copy a unit from labeled records of the same test,
+accepted only if the medians agree within a factor of 2; an exact
+reference-range match is trusted as is. `unit_concept_rules` sets units by
+hand (pH, INR, ratios, indexes) and marks suspect concepts. Concept-0
+records use the source-name list (cells 7-9, below).
 
-| Method | Meaning |
-|---|---|
-| dataset_unit / partner_unit / range_match | unit copied from other records of the same test (any partner / same partner / same partner and same reference range) |
-| explicit | unit set by hand per concept (unit_concept_rules), including pH, INR, ratios, indexes |
-| source_name | concept 0; unit decided from measurement_source_value |
-| unitless | specific gravity |
-| suspect_concept | values don't fit the concept (likely concept-mapping error); 82 records |
-| needs_review / no_concept | undetermined; 6 records |
+**Part B** (unit string, no unit concept). `unit_string_map` maps each
+string by hand (cell 10); a string with no map that already maps to a unit
+concept elsewhere in the table is reused_mapping.
 
-Result (last run): 195,464 got a unit, 9,660 unitless (specific
-gravity), 88 without a unit (82 suspect_concept, 6 undetermined).
-
-**Part B.** Numeric records with a unit string but no unit concept: about 55,000
-records, 223 strings.
-
-| Method | Meaning |
-|---|---|
-| mapped_string | hand map (unit_string_map) |
-| reused_mapping | same string already maps to a concept elsewhere in the table |
-| unitless | ACTIVITY COEFF only ({ratio}, Index, S/CO, ISR, OD are mapped_string now) |
-| not_a_unit | junk in the unit field ("Possible", "**Please", "PharmD", "Urine") |
-| unmapped_string | left on purpose (58 strings: log viral loads, FLU, CU, per-ejaculate counts) |
-
-Result (last run): 55,267 records; 49,035 got a unit (mapped_string,
-reused_mapping), 1 unitless, 6,231 without a unit (5,956 unmapped_string,
-275 not_a_unit).
-
-**Part C.** Numeric records with no unit string, no unit concept and no
-reference range: 1,066,251 records, almost all from one partner, mostly
-flowsheet and exam data. About 100 tests cover 97% of them, and most of those
-tests have no labeled records to copy a unit from, so name rules
-(`unit_no_range_rules`, regexes on the test name) do most of the work.
-Decisions are per (partner, test). Records are picked by their raw columns
-(no unit string, no unit concept, no range_high), so rerunning sees the same
-records and never uses its own output as evidence.
-
-| Method | Meaning |
-|---|---|
-| explicit / unitless / not_a_quantity / needs_review | name rule (not_a_quantity: codes, IDs, admin fields such as EKG impression codes, HLA alleles, case numbers; unitless: counts, Ct values, RAST class) |
-| partner_unit / dataset_unit | copied from labeled records of the same test, same partner first; group median within a factor of 2 of the candidate's |
-| source_name | concept 0, Part A's source-name list (exact names; no median check, so name rules override the wrong ones) |
-| value_split | group holds two units (or a unit and a different test); each record gets the unit and method of its value band (`unit_no_range_value_rules`) |
+**Part C** (no unit string, no unit concept, no reference range). Almost
+all from one partner, mostly flowsheet and exam data. About 100 tests cover
+97% of the records, and most have no labeled records to copy a unit from,
+so name rules (`unit_no_range_rules`, regexes on the test name) do most of
+the work. Decisions are per (partner, test), in this order: name rule,
+Part A's concept rule, copied from labeled records (same partner first;
+group median within a factor of 2 of the candidate's), the source-name
+list, needs_review. Records are picked by their raw columns (no unit
+string, no unit concept, no range_high), so rerunning sees the same records
+and never uses its own output as evidence. Unitless records don't count as
+evidence (cell 13a).
 
 value_split covers body temperature (Cel / [degF]), "Protein/Creatinine
 Ratio, Exte" (mg/mg / mg/g) and "Residual volume/Total capacity". That last
@@ -155,17 +115,15 @@ high in all 214 exams, cell 15f). Values under 8 are TLC and get
 suspect_concept. SVR is `dyn.sec/cm5` (32703) and SVR index `dyn.s/cm5/m2`
 (720841); OMOP spells the two inconsistently.
 
-pH, saturation fractions and ratios have a name rule each (31-33). The
-name rules were renumbered on 2026-10-27, so 14b outputs from earlier runs
-use other numbers.
-
-Unitless records no longer count as evidence (cell 13a): what's still
-unitless gets it from a rule.
-
-Result (last run): 971,623 explicit (6,457 of them the HDL/total records,
-{ratio} under 3011163), 14,784 unitless, 74,361 copied, 469 source_name,
-3,790 not_a_quantity, 225 suspect_concept (TLC under RV/TLC), 659
-needs_review, 340 value_split.
+**Source-name list** (Part A cell 7, used by Part C). Concept-0 records get
+a unit from an exact list of 80 lowercased, trimmed source names (some
+source values carry a trailing space). Exact names, not patterns, because
+nothing checks these units against the values: `%hemoglobin%` would give
+HbA1c g/dL, `%globulin%` thyroglobulin, `%neutrophils%` percentages. Every
+name was checked against its values and reference ranges (E 8b for Part A,
+F5 for Part C, which lists every Part C group on the list whatever its
+method). A new name with no other evidence shows up as no_concept in 8b
+(Part A) or needs_review in 15c (Part C).
 
 **Part D.** Conversion to a canonical unit per test. A test is the measurement
 concept, or the measurement_source_value for concept 0.
@@ -183,12 +141,10 @@ concept, or the measurement_source_value for concept 0.
   contradict (CEA "mg/dL"). A rule with no target blocks conversion. Rules
   based on a code's meaning (S, H, [degC], [foz_us] on weights) apply to every
   partner; rules based on medians apply only to the partners whose medians
-  showed it (a PR review pointed out that `deg` -> [degF] for everyone would
-  turn a Celsius "deg" partner's 37 into 2.8 °C). In the last run each of
-  those rules hit exactly one partner (two for eGFR `mL/min`: 2084 and
-  3058). Partner 2084's "Body weight" `[lb_us]` records are ounces (raw
-  median 2,847; partner 8469's pounds match its kg records per person, cell
-  20c).
+  showed it (applied to everyone, `deg` -> [degF] would turn a Celsius
+  partner's 37 into 2.8 °C). Partner 2084's "Body weight" `[lb_us]` records
+  are ounces (raw median 2,847; partner 8469's pounds match its kg records
+  per person, cell 20c).
 - Decisions are per (partner, test, unit); the canonical unit is per test,
   chosen across partners.
 - The canonical unit is the most common one (equivalent codes counted
@@ -200,52 +156,25 @@ concept, or the measurement_source_value for concept 0.
 - 19f lists the tests whose canonical unit is a judgment call: set by a
   rule, or a second unit class with at least 20% of records.
 
-| Method | Meaning |
-|---|---|
-| identity | already in the canonical unit (possibly after a relabel) |
-| same_base | converted by unit factors |
-| analyte_bridge | converted through molar mass or charge |
-| no_conversion | different quantity under one test, or no fixed factor (log viral loads, Lp(a), arbitrary antibody units) |
-| blocked | relabel rule says don't convert |
-
 Run order is A, B, C, D. Part C uses units from A and B as evidence, and
 Part D converts the units all three assign. Every apply (cells 6, 9, 12, 16)
-clears Part D's columns (canonical unit concept and code, conversion method,
-harmonized value) on the records it writes, so a rerun of any part needs a Part D rerun after it. D's apply
-touches only records with a unit, so without that clearing a record whose
-unit was taken away keeps a stale canonical unit (E2 checks for this).
-
-Numeric records after Parts A-D (cell 20a, last run): 7,008,376 in
-canonical unit, 24,445 unitless, 4,653 with a unit but no conversion,
-10,993 with no unit.
-
-**Source-name list** (Part A cell 7, used by Part C step 4). Concept-0
-records get a unit from an exact list of 80 lowercased, trimmed source
-names (some source values carry a trailing space), not LIKE patterns. The
-patterns had no value check, and a PR review pointed out what they could
-catch (HbA1c under `%hemoglobin%`, thyroglobulin under `%globulin%`,
-percentages under `%neutrophils%`). Every name they actually matched in the
-2026-10-28 run was checked against its values and reference ranges (E 8b
-for Part A, F5 for Part C) and is on the list with the same unit; the full
-rerun with the list gave the same counts. F5 lists every Part C group on the
-list whatever its method: one, "Specific Gravity, URN, Externa" (108),
-gets unitless rather than source_name. A new name with no other evidence now
-shows up as no_concept in 8b (Part A) or needs_review in 15c (Part C).
+clears Part D's columns (canonical unit concept and code, conversion
+method, harmonized value) on the records it writes, so a rerun of any part
+needs a Part D rerun after it. D's apply touches only records with a unit,
+so without that clearing a record whose unit was taken away keeps a stale
+canonical unit (E2 checks for this).
 
 ## Next step
 
-The last full run (Siggie's E_review_outputs.ipynb, 2026-10-28, with the
-concept correction, the UCUM units and the exact source-name list) had every check empty and every
-review matching its comment. The README, this file and the charts
+The last full run (Siggie's E_review_outputs.ipynb, 2026-10-28) had every
+check empty and every review matching its comment. The README, this file and the charts
 ([charts/make_charts.py](charts/make_charts.py) has the counts typed in)
 carry its counts. After a rerun, update all three from E.
 
-PR #3: Stephanie's five review comments are answered (setup steps and
-column table in the README, exact source-name list, partner-scoped
-relabels, the HDL/total concept correction). Waiting on her answers to
-three questions: canonical labels mEq/L and IU/L as in her REDCap list,
-or our mmol/L and U/L; whether her list's C-peptide ng/L and insulin
-ng/mL are typos; and keeping every test in scope, not only her list's.
+PR #3: Stephanie's five review comments are answered. Waiting on her
+answers to three questions: the REDCap labels and the C-peptide/insulin
+units (Not done, item 3), and keeping every test in scope, not only her
+list's.
 
 ## Not done
 
@@ -274,24 +203,21 @@ ng/mL are typos; and keeping every test in scope, not only her list's.
      relabels make both copies convert to the same value. Left as they
      arrived; deduplicating is upstream's call.
    - Tidal volume setting: mL and mL/kg (labeled kg) under one concept
-3. **Canonical-unit judgment calls** (19f, run as an ad hoc query on the
-   pre-tiebreaker run; 64 rows). Undecided:
+3. **Canonical-unit judgment calls** (19f). Undecided:
    - AI-READI's REDCap mapping (`_ai_readi_redcap_value_set_mapping_common.csv`
      in the AI-READI DataElementMaps repo; Siggie keeps a copy in the
      untracked `ref_files/`) gives a unit per test for about 50 tests. Where
      it differs from ours: Na, K, Cl, total CO2 in mEq/L (ours mmol/L, same
      numbers), AST/ALT/ALP in [iU]/L (equivalent to our [U]/L), urine
      albumin mg/L. It has no temperature. Every test on it that's in the
-     EHR data is harmonized (F2). Asked Stephanie which labels she wants
-     (PR #3).
+     EHR data is harmonized (F2). Asked Stephanie which labels she wants.
    - C-peptide and insulin in the list (CSV lines 509-518): each unit row
      sits under its own question. C-peptide's ng/L doesn't fit our data:
      all 181 records under 3010084 arrived in ng/mL, median 2.74 (2.74 ng/L
      would be far below any C-peptide level). Insulin's ng/mL can't be
      checked: there are no records under its concept 3022466 (Insulin
      [Mass/volume]); F3a found insulin under 3009413 and 3016244 (Insulin
-     [Units/volume]), in uIU/mL. Asked Stephanie whether these are typos
-     (PR #3).
+     [Units/volume]), in uIU/mL. Asked Stephanie whether these are typos.
    - Real choices in the data: CRP mg/L vs mg/dL (51/49), testosterone ng/mL
      vs ng/dL (56/44), T3 ng/dL vs ng/mL, radiation dose cGy vs Gy, 24 h
      urine urea nitrogen g vs mg.
@@ -307,14 +233,11 @@ ng/mL are typos; and keeping every test in scope, not only her list's.
    1.8-13), across partners 2084, 3058 and 8469. Only one (2084, value 13,
    same-day total/HDL 13.1) could be matched to that day's lipids; the
    rest have no same-day total and HDL. They're converted as mg/dL for now.
-6. **A/G and BUN/creatinine ratios** (F2, F3c). Albumin/Globulin 3020509
-   (1,455 records) and Urea nitrogen/Creatinine 3018311 (1,728) were
-   unitless apart from the ones that arrived as {calc}; they now get
-   {ratio}, the same class as {calc}. Left over: 4 A/G records whose unit
-   text is `**Please` (not_a_unit, so no unit, values about 1.8). The REDCap list
-   has two BUN/creatinine entries: import_bun_creatinine_ratio is 3018311,
-   but import_buncreatinineratio is 3033837 "Creatinine/Urea nitrogen", the
-   inverse ratio, which has no records.
+6. **A/G and BUN/creatinine ratios** (F2, F3c). 4 A/G records have unit
+   text `**Please` (not_a_unit, so no unit; values about 1.8). The REDCap
+   list has two BUN/creatinine entries: import_bun_creatinine_ratio is
+   3018311, but import_buncreatinineratio is 3033837 "Creatinine/Urea
+   nitrogen", the inverse ratio, which has no records.
 
 ## Gotchas learned
 
