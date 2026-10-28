@@ -17,6 +17,7 @@
 --                           group's median is within a factor of 2 of the
 --                           candidate's median.
 --   4. source_name          concept 0 only: Part A's unit_source_name_rules
+--                           (exact source names)
 --   5. needs_review
 -- Method names are Part A's; range_high IS NULL tells Part C records apart.
 -- value_split groups hold two units, or a unit and a different test; the
@@ -370,14 +371,11 @@ name_rule AS (
   ) WHERE rk = 1
 ),
 src_rule AS (
-  SELECT * FROM (
-    SELECT t.test_id, r.rule, r.unit_code, r.pattern,
-           ROW_NUMBER() OVER (PARTITION BY t.test_id ORDER BY r.priority) AS rk
-    FROM (SELECT DISTINCT test_id, measurement_source_value FROM g
-          WHERE harmonized_measurement_concept_id = 0) t
-    JOIN hive_metastore.ehr_union_clean_metrics.unit_source_name_rules r
-      ON lower(t.measurement_source_value) LIKE r.pattern
-  ) WHERE rk = 1
+  SELECT DISTINCT t.test_id, r.rule, r.unit_code, r.source_name
+  FROM (SELECT DISTINCT test_id, measurement_source_value FROM g
+        WHERE harmonized_measurement_concept_id = 0) t
+  JOIN hive_metastore.ehr_union_clean_metrics.unit_source_name_rules r
+    ON lower(trim(t.measurement_source_value)) = r.source_name
 ),
 -- hand rule per group: name rule first, then Part A's concept rule
 hand AS (
@@ -409,7 +407,7 @@ SELECT g.data_partner_id, g.test_id, g.harmonized_measurement_concept_id, g.test
        p.n_ev  AS evidence_n,
        p.med_ev AS evidence_median,
        e.evidence_units,
-       COALESCE(h.note, s.pattern) AS note
+       COALESCE(h.note, s.source_name) AS note
 FROM g
 LEFT JOIN hand h     ON h.data_partner_id = g.data_partner_id AND h.test_id = g.test_id
 LEFT JOIN pick p     ON p.data_partner_id = g.data_partner_id AND p.test_id = g.test_id

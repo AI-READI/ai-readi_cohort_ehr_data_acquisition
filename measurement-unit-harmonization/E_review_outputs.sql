@@ -70,8 +70,9 @@ WHERE r.unit_code IS NOT NULL AND ru.concept_id IS NULL;
 -- 8b (Part A, cell A7). Review: no-concept decisions, every group.
 --     Expect: almost all source_name (ratios, pH, INR, indexes and NASH
 --     scores with their UCUM unit); unitless only for specific gravity.
---     Part A's needs_review and no_concept together come to 6 records (5a
---     plus this).
+--     no_concept only for PPD and "Viscosity, Serum"; any other no_concept
+--     row is a source name missing from cell 7's list. Part A's
+--     needs_review and no_concept together come to 6 records (5a plus this).
 SELECT * FROM hive_metastore.ehr_union_clean_metrics.unit_inference_source_name_decisions
 ORDER BY unit_inference_method, n DESC;
 
@@ -146,8 +147,8 @@ SELECT * FROM (
 --      before 16 splits value_split groups into bands.
 --      Expect: total 1,066,251; explicit 971,623 (scores, pain scales,
 --      pH, ratios included); unitless 14,784 (counts, Ct values, RAST
---      class); value_split 565. E1 has the per-record counts after the
---      split.
+--      class); value_split 565; source_name 12 groups, 469 records (F5
+--      lists them). E1 has the per-record counts after the split.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions
 GROUP BY 1

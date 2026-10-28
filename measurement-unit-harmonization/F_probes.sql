@@ -373,3 +373,62 @@ FROM (
 )
 WHERE rn <= 5 OR (concept_id = 3023884 AND part = 'A')
 ORDER BY test_name, data_partner_id, part, unit_inference_method, matches, v;
+
+
+-- COMMAND ----------
+
+-- F5. Part C groups that got their unit from a source-name rule (step 4).
+--     E 15a shows only their total. Last run: 12 groups, 469 records, all
+--     partner 3058, every unit fitting its values.
+SELECT d.data_partner_id, d.test_name, d.n, d.p05, d.med, d.p95,
+       u.concept_code AS unit, d.note AS source_name
+FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions d
+LEFT JOIN omop_vocab.concept u ON u.concept_id = d.inferred_unit_concept_id
+WHERE d.unit_inference_method = 'source_name'
+ORDER BY d.n DESC;
+
+
+-- COMMAND ----------
+
+-- F6. Partner 2084's s/S (INR) and L/l (expiratory minute volume) rows in
+--     19d/19e have the same counts and medians: is each event stored twice?
+--     Last run: yes. Every (person, datetime, value) has as many S as s
+--     records, and as many L as l (unit text "sec" for INR, none for minute
+--     volume).
+WITH r AS (
+  SELECT c.concept_name, k.person_id, k.measurement_datetime, k.value_as_number,
+         u.concept_code AS unit_code, COALESCE(k.unit_source_value, '-') AS unit_text
+  FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
+  JOIN omop_vocab.concept c ON c.concept_id = k.harmonized_measurement_concept_id
+  JOIN omop_vocab.concept u ON u.concept_id = k.effective_unit_concept_id
+  WHERE k.data_partner_id = 2084
+    AND c.concept_name IN ('INR in Platelet poor plasma by Coagulation assay', 'Expiratory minute volume')
+    AND u.concept_code IN ('s', 'S', 'L', 'l')
+)
+SELECT concept_name, units, unit_texts, COUNT(*) AS n_events
+FROM (SELECT concept_name, person_id, measurement_datetime, value_as_number,
+             array_join(sort_array(collect_list(unit_code)), ',') AS units,
+             array_join(sort_array(collect_list(unit_text)), ',') AS unit_texts
+      FROM r GROUP BY 1, 2, 3, 4)
+GROUP BY 1, 2, 3
+ORDER BY 1, 4 DESC;
+
+
+-- COMMAND ----------
+
+-- F7. F6 for every test: events stored under two unit codes that differ
+--     only in case (s/S, l/L, h/H, ...). Not run yet.
+WITH k AS (
+  SELECT k.data_partner_id, k.test_id, k.person_id, k.measurement_datetime,
+         k.value_as_number, u.concept_code AS unit_code
+  FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
+  JOIN omop_vocab.concept u ON u.concept_id = k.effective_unit_concept_id
+)
+SELECT data_partner_id, test_id, codes, COUNT(*) AS n_events
+FROM (SELECT data_partner_id, test_id, person_id, measurement_datetime, value_as_number,
+             array_join(sort_array(collect_set(unit_code)), ',') AS codes
+      FROM k
+      GROUP BY 1, 2, 3, 4, 5, lower(unit_code)
+      HAVING COUNT(DISTINCT unit_code) > 1)
+GROUP BY 1, 2, 3
+ORDER BY n_events DESC;

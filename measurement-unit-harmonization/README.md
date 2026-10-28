@@ -136,14 +136,33 @@ siemens, CEA in "mg/dL" that is ng/mL).
 - **4,653 records with a unit that can't convert**: arbitrary antibody units,
   log viral loads, tests holding two different quantities (1,440 PT values
   in seconds under the INR concept, whose canonical unit is {ratio}).
+- **Records stored twice** by partner 2084, under unit codes that differ
+  only in case: the PT-in-seconds records above (`s` and `S`, 720 each) and
+  expiratory minute volume (`L` and `l`, 869 each). Probe F6 in
+  [F_probes.sql](F_probes.sql) matches them by person, time and value. They
+  are left as they arrived.
 - **Values that don't fit their test**, flagged and not converted (307
   records): for example "total T4" that is free T4, and total lung capacity
   stored under the RV/TLC ratio. Also noted but left as recorded: RBC counts
   under reticulocytes.
 
-## Notebooks
+## Setup and running
 
-Run in order, each in Databricks and as SQL source in this repo:
+Needs read access to `ehr_union_clean.measurement` and `omop_vocab.concept`,
+and write access to `hive_metastore.ehr_union_clean_metrics`.
+
+1. Import the five `.sql` files below (Workspace > Import > File). They are
+   in Databricks source format, so each splits into its cells on import.
+2. If `measurement_unit_harmonized` already exists from an earlier version,
+   drop it first (the commented-out `DROP TABLE` line in A's cell 1). A's
+   `CREATE TABLE IF NOT EXISTS` doesn't add columns to an existing table,
+   and earlier versions lack `harmonized_measurement_concept_id`,
+   `unit_inference_method` and `unit_conversion_method`.
+3. Run A, B, C and D in order, each top to bottom. Each part clears D's
+   columns on the records it writes, so rerunning any part means rerunning
+   D after it.
+4. Run E. Every cell marked "Check" should return no rows, and every review
+   should match the expectation in its comment.
 
 | | Databricks | Source |
 |---|---|---|
@@ -156,18 +175,23 @@ Run in order, each in Databricks and as SQL source in this repo:
 Part A's first cells create the target table if it doesn't exist, fill
 the inferred columns for records that arrived with a unit, and fill
 `harmonized_measurement_concept_id`. Columns added to
-`ehr_union_clean.measurement`'s:
+`ehr_union_clean.measurement`'s, and the numeric records each is empty for:
 
-| Column | Type | Contents |
-|---|---|---|
-| `harmonized_measurement_concept_id` | bigint | The test: `measurement_concept_id`, or its correction ([above](#records-under-the-wrong-concept)) |
-| `unit_inference_method` | string | How the unit was decided (table above) |
-| `inferred_unit_concept_id` | bigint | The record's unit: inferred, or copied from `unit_concept_id` |
-| `inferred_unit_source_value` | string | That unit's UCUM code |
-| `canonical_unit_concept_id` | bigint | The test's canonical unit, set where `harmonized_value_as_number` is in it |
-| `canonical_unit_value` | string | The canonical unit's UCUM code |
-| `harmonized_value_as_number` | double | Value in the canonical unit; for unitless records, the value as recorded |
-| `unit_conversion_method` | string | `identity` (already in the canonical unit), `same_base` (unit factors), `analyte_bridge` (molar mass or charge), `no_conversion`, `blocked` |
+| Column | Type | Contents | Empty for |
+|---|---|---|---|
+| `harmonized_measurement_concept_id` | bigint | The test: `measurement_concept_id`, or its correction ([above](#records-under-the-wrong-concept)); 0 where there is none | none |
+| `unit_inference_method` | string | How the unit was decided (table above) | none |
+| `inferred_unit_concept_id` | bigint | The record's unit: inferred, or copied from `unit_concept_id` | unitless, no unit |
+| `inferred_unit_source_value` | string | That unit's UCUM code | unitless, no unit |
+| `canonical_unit_concept_id` | bigint | The test's canonical unit, set where `harmonized_value_as_number` is in it | unitless, no unit, no conversion |
+| `canonical_unit_value` | string | The canonical unit's UCUM code | unitless, no unit, no conversion |
+| `harmonized_value_as_number` | double | Value in the canonical unit; for unitless records, the value as recorded | no unit, no conversion |
+| `unit_conversion_method` | string | `identity` (already in the canonical unit), `same_base` (unit factors), `analyte_bridge` (molar mass or charge), `no_conversion`, `blocked` | unitless, no unit |
+
+The 786,850 records with no numeric value get
+`harmonized_measurement_concept_id`, plus the method and inferred unit
+when they arrived with a unit concept; the last four columns stay empty. Check E3 confirms
+that no numeric record with a unit is missing one of its columns.
 
 Open items and the state of the work are in
 [unit_inference_handoff.md](unit_inference_handoff.md); the earlier

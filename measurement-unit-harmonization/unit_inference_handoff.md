@@ -28,7 +28,10 @@ unit (or is marked unitless), a canonical unit, and a harmonized value.
   `SELECT *` is expanded when it is created, so 1f has to rerun whenever the
   table is recreated. The table used to be
   created by the Python in [exploration_queries.md](exploration_queries.md)
-  ("Target output table"), which lacks the last two columns.
+  ("Target output table"), which lacks `harmonized_measurement_concept_id`,
+  `unit_inference_method` and `unit_conversion_method`; such a table has to
+  be dropped, since `IF NOT EXISTS` won't add them (README, "Setup and
+  running").
 - Original `measurement_concept_id`, `unit_concept_id` and
   `unit_source_value` are left untouched. A record's
   effective unit is `COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id)`;
@@ -142,7 +145,7 @@ records and never uses its own output as evidence.
 |---|---|
 | explicit / unitless / not_a_quantity / needs_review | name rule (not_a_quantity: codes, IDs, admin fields such as EKG impression codes, HLA alleles, case numbers; unitless: counts, Ct values, RAST class) |
 | partner_unit / dataset_unit | copied from labeled records of the same test, same partner first; group median within a factor of 2 of the candidate's |
-| source_name | concept 0, Part A's source-name rules (no median check, so name rules override the wrong ones) |
+| source_name | concept 0, Part A's source-name list (exact names; no median check, so name rules override the wrong ones) |
 | value_split | group holds two units (or a unit and a different test); each record gets the unit and method of its value band (`unit_no_range_value_rules`) |
 
 value_split covers body temperature (Cel / [degF]), "Protein/Creatinine
@@ -216,6 +219,17 @@ Numeric records after Parts A-D (cell 20a, last run): 7,008,376 in
 canonical unit, 24,445 unitless, 4,653 with a unit but no conversion,
 10,993 with no unit.
 
+**Source-name list** (Part A cell 7, used by Part C step 4). Concept-0
+records get a unit from an exact list of 79 lowercased, trimmed source
+names (some source values carry a trailing space), not LIKE patterns. The
+patterns had no value check, and a PR review pointed out what they could
+catch (HbA1c under `%hemoglobin%`, thyroglobulin under `%globulin%`,
+percentages under `%neutrophils%`). Every name they actually matched in the
+2026-10-28 run was checked against its values and reference ranges (E 8b
+for Part A, F5 for Part C) and is on the list with the same unit, so a
+rerun should give the same counts. A new name with no other evidence now
+shows up as no_concept in 8b (Part A) or needs_review in 15c (Part C).
+
 ## Next step
 
 The last full run (Siggie's E_review_outputs.ipynb, 2026-10-28, with the
@@ -223,6 +237,10 @@ concept correction and the UCUM units) had every check empty and every
 review matching its comment. The README, this file and the charts
 ([charts/make_charts.py](charts/make_charts.py) has the counts typed in)
 carry its counts. After a rerun, update all three from E.
+
+Not run yet: the exact source-name list (A cells 7-9, then C from 13, D,
+E). Expected: counts unchanged; 8b's no_concept only PPD and "Viscosity,
+Serum"; F5 the same 12 groups.
 
 ## Not done
 
@@ -240,12 +258,13 @@ carry its counts. After a rerun, update all three from E.
    - Beta-2 glycoprotein IgM (4 records)
    - INR concept: 1,440 records in seconds with median 12, so PT values
      stored under INR. INR's canonical unit is {ratio}, so they show in 19d
-     as no_conversion: `s` and `S` rows, 720 each with the same median,
-     which look like duplicates.
+     as no_conversion: `s` and `S` rows, 720 each. Every one of these
+     events is stored twice, once as `s` and once as `S` (F6).
    - Reticulocytes [#/volume] by automated count: 312 records in 10\*6/mm3
      with median 4.25, so RBC counts, not reticulocytes (about 0.06)
-   - Expiratory minute volume: `L` and `l` rows, 869 each with the same
-     median, look like duplicates
+   - Expiratory minute volume: `L` and `l` rows, 869 each, also each event
+     stored twice (F6). F7 looks for other case-only unit pairs; not run
+     yet.
    - Tidal volume setting: mL and mL/kg (labeled kg) under one concept
 3. **Write-up for the boss**: drafted as
    [README.md](README.md), charts from
@@ -305,18 +324,12 @@ carry its counts. After a rerun, update all three from E.
    unit_conversion_medians, relabeled rows): CEA mg/dL -> ng/mL ratio 0.31,
    testosterone ug/dL -> ng/mL ratio 2.29, 24 h urine protein g/[dose] ratio
    0.53, expiratory minute volume `L` and `l` duplicates ratio 1.79.
-6. **Source-name rules** (PR review: broad LIKE patterns). Checked on the
-   data: 560 concept-0 records, and the hits look right ("Hemoglobin,
-   External" median 11.9 is hemoglobin, not A1c; "Globulin" median 3.1).
-   Doubtful single records: "Testosterone, External" 4.0 ng/dL, "Free
-   Testosterone, Calculated" 0.8 pg/mL. Tightening the patterns is still
-   worth doing before new data arrives.
-7. **HDL mass records that look like ratios** (F4a): 31 records under
+6. **HDL mass records that look like ratios** (F4a): 31 records under
    3007070 "Cholesterol in HDL [Mass/volume]" are under 15 mg/dL (values
    1.8-13), across partners 2084, 3058 and 8469. Only one (2084, value 13,
    same-day total/HDL 13.1) could be matched to that day's lipids; the
    rest have no same-day total and HDL. They're converted as mg/dL for now.
-8. **A/G and BUN/creatinine ratios** (F2, F3c). Albumin/Globulin 3020509
+7. **A/G and BUN/creatinine ratios** (F2, F3c). Albumin/Globulin 3020509
    (1,455 records) and Urea nitrogen/Creatinine 3018311 (1,728) were
    unitless apart from the ones that arrived as {calc}; they now get
    {ratio}, the same class as {calc}. Left over: 4 A/G records whose unit

@@ -298,7 +298,7 @@ SELECT * FROM VALUES
   ('(?i)glomerular filtration|GFR', 'mL/min', 'mL/min/(173.10*-2.m2)', 'medians match eGFR', 2084),
   ('(?i)glomerular filtration|GFR', 'mL/min', 'mL/min/(173.10*-2.m2)', 'medians match eGFR', 3058),
   ('(?i)^MCHC',                 '%',        'g/dL',     'median 33.6', 2084),
-  ('(?i)oxygen saturation',     'mm[Hg]',   '%',        'median 92', 8469),
+  ('(?i)oxygen saturation',     'mm[Hg]',   '%',        'median 92; pulse oximetry reports only %, so not PaO2', 8469),
   ('^Erythrocytes .#/volume. in Blood', '10*3/uL', '10*6/uL', 'median 3.82', 3058),
   ('(?i)^tidal volume',         'kg',       'mL/kg',    'median 6.4', 8469),
   ('^Carcinoembryonic Ag',      'mg/dL',    'ng/mL',    'median 0.86', 3058),

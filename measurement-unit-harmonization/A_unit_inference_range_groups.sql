@@ -55,7 +55,7 @@
 --      canonical_unit_value        its UCUM code
 --      harmonized_value_as_number  value in the canonical unit (unitless: value)
 --      unit_conversion_method      how it was converted (Part D)
--- DROP TABLE EXISTS hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized;
+-- DROP TABLE IF EXISTS hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized;
 CREATE TABLE IF NOT EXISTS hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized AS
 SELECT m.*,
        CAST(NULL AS BIGINT) AS harmonized_measurement_concept_id,
@@ -374,73 +374,101 @@ WHEN MATCHED THEN UPDATE SET
 
 -- ===== A6. No-concept records: rules. Last result: check, should be empty =====
 
--- 7. Records with no concept (harmonized_measurement_concept_id = 0): decide
---    the unit from the source test name. Patterns are matched against
---    lower(measurement_source_value); the lowest priority number wins, so
---    ratios come before their components ("albumin/globulin" before "albumin").
+-- 7. Records with no concept (harmonized_measurement_concept_id = 0): the
+--    unit for each source test name, matched exactly against
+--    lower(trim(measurement_source_value)). Exact names, not patterns:
+--    nothing checks these units against the values, so a new name (say
+--    "Hemoglobin A1c, External") has to show up as no_concept in 8b, not
+--    quietly inherit hemoglobin's g/dL. Part C (step 4) uses the same list.
+--    Every name here is partner 3058's, and each was checked against its
+--    values and reference ranges (8b, and F5 for Part C). Names are cut
+--    at 30 characters in the source.
 --    Run this AFTER cell 6: it overwrites the 'no_concept' rows cell 6 wrote.
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_source_name_rules AS
 SELECT * FROM VALUES
   -- dimensionless units
-  ( 1, '%albumin/globulin%',     'source_name', '{ratio}'),
-  ( 3, '%bun/creatinine%',       'source_name', '{ratio}'),
-  ( 4, '%igg/albumin%',          'source_name', '{ratio}'),
-  ( 5, '%immunoglobulin g index%','source_name', '{index}'),
-  ( 6, '%kappa/lambda%',         'source_name', '{ratio}'),
-  ( 7, '%cd4/cd8%',              'source_name', '{ratio}'),
-  ( 9, 'ph,%',                   'source_name', 'pH'),
-  (10, '%inr%',                  'source_name', '{ratio}'),
-  (11, '%aspergillus gm%',       'source_name', '{index}'),
-  (12, '%teratozoospermia index%','source_name', '{index}'),
-  (13, '%jcv index%',            'source_name', '{index}'),
-  (14, '%nash%',                 'source_name', '[score]'),
+  ('albumin/globulin ratio',          'source_name', '{ratio}'),
+  ('bun/creatinine ratio',            'source_name', '{ratio}'),
+  ('igg/albumin, csf',                'source_name', '{ratio}'),
+  ('kappa/lambda flc ratio',          'source_name', '{ratio}'),
+  ('cd4/cd8 ratio',                   'source_name', '{ratio}'),
+  ('inr fingerstick, rapid lab',      'source_name', '{ratio}'),
+  ('prothrombin inr',                 'source_name', '{ratio}'),
+  ('prothrombin inr, external',       'source_name', '{ratio}'),
+  ('immunoglobulin g index, csf',     'source_name', '{index}'),
+  ('aspergillus gm index',            'source_name', '{index}'),
+  ('aspergillus gm index, bal',       'source_name', '{index}'),
+  ('aspergillus gm confirm, bal',     'source_name', '{index}'),
+  ('teratozoospermia index',          'source_name', '{index}'),
+  ('jcv index value',                 'source_name', '{index}'),
+  ('nash score',                      'source_name', '[score]'),
+  ('nash steatosis score',            'source_name', '[score]'),
+  ('nash fibrosis score',             'source_name', '[score]'),
+  ('ph, urn',                         'source_name', 'pH'),
+  ('ph, urn (uwnc)',                  'source_name', 'pH'),
+  ('ph, urn, external',               'source_name', 'pH'),
+  ('ph, ven',                         'source_name', 'pH'),
+  ('ph, mixed ven',                   'source_name', 'pH'),
+  ('ph, wet mount',                   'source_name', 'pH'),
   -- unitless: no UCUM unit
-  ( 8, '%specific gravity%',     'unitless', NULL),
+  ('specific gravity, urine',         'unitless',    NULL),
+  ('specific gravity, urn',           'unitless',    NULL),
   -- units
-  ( 2, '%albumin/creatinine%',   'source_name', 'mg/g{creat}'),
-  (15, '%non-hdl%',              'source_name', 'mg/dL'),
-  (16, '%cholesterol%',          'source_name', 'mg/dL'),
-  (17, '%triglyceride%',         'source_name', 'mg/dL'),
-  (18, '%glucose%',              'source_name', 'mg/dL'),
-  (19, '%calcium%',              'source_name', 'mg/dL'),
-  (20, '%creatinine%',           'source_name', 'mg/dL'),
-  (21, '%magnesium%',            'source_name', 'mg/dL'),
-  (22, '%phosphate%',            'source_name', 'mg/dL'),
-  (23, '%direct bilirubin%',     'source_name', 'mg/dL'),
-  (24, '%apolipoprotein b%',     'source_name', 'mg/dL'),
-  (25, '%protein (total)%',      'source_name', 'g/dL'),
-  (26, 'albumin,%',              'source_name', 'g/dL'),
-  (27, '%globulin%',             'source_name', 'g/dL'),
-  (28, '%hemoglobin%',           'source_name', 'g/dL'),
-  (29, '%hematocrit%',           'source_name', '%'),
-  (30, '%rdw%',                  'source_name', '%'),
-  (31, '%sodium%',               'source_name', 'mmol/L'),
-  (32, '%potassium%',            'source_name', 'mmol/L'),
-  (33, '%chloride%',             'source_name', 'mmol/L'),
-  (34, '%platelet count%',       'source_name', '10*3/uL'),
-  (35, '%lymphocyte count%',     'source_name', '10*3/uL'),
-  (36, '%neutrophils%',          'source_name', '10*3/uL'),
-  (37, '%monocytes%',            'source_name', '10*3/uL'),
-  (38, '%basophils%',            'source_name', '10*3/uL'),
-  (39, '%eosinophil count%',     'source_name', '10*3/uL'),
-  (40, '%immature granulocytes%','source_name', '10*3/uL'),
-  (41, '%alt (gpt)%',            'source_name', '[U]/L'),
-  (42, '%ast (got)%',            'source_name', '[U]/L'),
-  (43, '%alkaline phosphatase%', 'source_name', '[U]/L'),
-  (44, '%thyroid stimulating%',  'source_name', '10*-6.[iU]/mL'),
-  (45, '%insulin%',              'source_name', '10*-6.[iU]/mL'),
-  (46, '%sedimentation%',        'source_name', 'mm/h'),
-  (47, '%cortisol%',             'source_name', 'ug/dL'),
-  (48, '%prolactin%',            'source_name', 'ng/mL'),
-  (49, '%hydroxy%',              'source_name', 'ng/mL'),
-  (50, '%free t4%',              'source_name', 'ng/dL'),
-  (51, '%parathyroid%',          'source_name', 'pg/mL'),
-  (52, '%ferritin%',             'source_name', 'ng/mL'),
-  (53, '%free testosterone%',    'source_name', 'pg/mL'),
-  (54, '%testosterone%',         'source_name', 'ng/dL'),
-  (55, '%urobilinogen%',         'source_name', '[EU]/dL'),
-  (56, '%osmolality%',           'source_name', 'mosm/kg')
-AS t(priority, pattern, rule, unit_code);
+  ('albumin/creatinine ratio, urn,',  'source_name', 'mg/g{creat}'),
+  ('cholesterol (total), external',   'source_name', 'mg/dL'),
+  ('non-hdl cholesterol, external',   'source_name', 'mg/dL'),
+  ('triglyceride, external',          'source_name', 'mg/dL'),
+  ('glucose, external',               'source_name', 'mg/dL'),
+  ('glucose qual, urn, external',     'source_name', 'mg/dL'),
+  ('calcium, external',               'source_name', 'mg/dL'),
+  ('creatinine',                      'source_name', 'mg/dL'),
+  ('creatinine, external',            'source_name', 'mg/dL'),
+  ('creatinine/unit, urn (sendout)',  'source_name', 'mg/dL'),
+  ('magnesium, external',             'source_name', 'mg/dL'),
+  ('phosphate, external',             'source_name', 'mg/dL'),
+  ('direct bilirubin (beckman)',      'source_name', 'mg/dL'),
+  ('apolipoprotein b',                'source_name', 'mg/dL'),
+  ('protein (total), external',       'source_name', 'g/dL'),
+  ('albumin, external',               'source_name', 'g/dL'),
+  ('globulin',                        'source_name', 'g/dL'),
+  ('hemoglobin, external',            'source_name', 'g/dL'),
+  ('hemoglobin, poct',                'source_name', 'g/dL'),
+  ('hematocrit, external',            'source_name', '%'),
+  ('rdw-cv, external',                'source_name', '%'),
+  ('sodium',                          'source_name', 'mmol/L'),
+  ('sodium, external',                'source_name', 'mmol/L'),
+  ('potassium, external',             'source_name', 'mmol/L'),
+  ('chloride',                        'source_name', 'mmol/L'),
+  ('chloride, external',              'source_name', 'mmol/L'),
+  ('platelet count, external',        'source_name', '10*3/uL'),
+  ('lymphocyte count, external',      'source_name', '10*3/uL'),
+  ('neutrophils, external',           'source_name', '10*3/uL'),
+  ('monocytes, external',             'source_name', '10*3/uL'),
+  ('basophils, external',             'source_name', '10*3/uL'),
+  ('eosinophil count, external',      'source_name', '10*3/uL'),
+  ('immature granulocytes',           'source_name', '10*3/uL'),
+  ('immature granulocytes, externa',  'source_name', '10*3/uL'),
+  ('alt (gpt), external',             'source_name', '[U]/L'),
+  ('ast (got), external',             'source_name', '[U]/L'),
+  ('alkaline phosphatase (total),',   'source_name', '[U]/L'),
+  ('thyroid stimulating hormone, e',  'source_name', '10*-6.[iU]/mL'),
+  ('insulin',                         'source_name', '10*-6.[iU]/mL'),
+  ('insulin, external',               'source_name', '10*-6.[iU]/mL'),
+  ('rbc sedimentation rate, extern',  'source_name', 'mm/h'),
+  ('cortisol, external',              'source_name', 'ug/dL'),
+  ('prolactin, external',             'source_name', 'ng/mL'),
+  ('ferritin, external',              'source_name', 'ng/mL'),
+  ('vit d (25_hydroxy) total, exte',  'source_name', 'ng/mL'),
+  ('vitamin d2 (25_hydroxy), exter',  'source_name', 'ng/mL'),
+  ('vitamin d3 (25_hydroxy), exter',  'source_name', 'ng/mL'),
+  ('free t4 by equil.di.',            'source_name', 'ng/dL'),
+  ('parathyroid hormone',             'source_name', 'pg/mL'),
+  ('parathyroid hormone, external',   'source_name', 'pg/mL'),
+  ('free testosterone, calculated,',  'source_name', 'pg/mL'),
+  ('testosterone, external',          'source_name', 'ng/dL'),
+  ('urobilinogen, urn, external',     'source_name', '[EU]/dL'),
+  ('osmolality, urn',                 'source_name', 'mosm/kg')
+AS t(source_name, rule, unit_code);
 
 -- 7b. Check: unit codes that don't resolve to a UCUM concept.
 --     Should return no rows; fix the code in cell 7 if it does.
@@ -472,25 +500,21 @@ WITH g AS (
   GROUP BY 1, 2, 3, 4
 ),
 m AS (
-  SELECT g.*, r.rule, r.unit_code, r.pattern,
-         ROW_NUMBER() OVER (
-           PARTITION BY g.data_partner_id, g.measurement_source_value, g.range_low, g.range_high
-           ORDER BY r.priority) AS rk
+  SELECT g.*, r.rule, r.unit_code, r.source_name
   FROM g
   LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_source_name_rules r
-    ON lower(g.measurement_source_value) LIKE r.pattern
+    ON lower(trim(g.measurement_source_value)) = r.source_name
 )
 SELECT m.data_partner_id, m.measurement_source_value, m.range_low, m.range_high, m.n, m.med,
        COALESCE(m.rule, 'no_concept') AS unit_inference_method,
        ru.concept_id AS inferred_unit_concept_id,
        ru.concept_code AS inferred_unit,
-       m.pattern AS matched_pattern
+       m.source_name AS matched_name
 FROM m
 LEFT JOIN omop_vocab.concept ru
   ON  ru.vocabulary_id = 'UCUM'
   AND ru.concept_code = m.unit_code
-  AND ru.invalid_reason IS NULL
-WHERE m.rk = 1;
+  AND ru.invalid_reason IS NULL;
 
 -- 8b. Review
 SELECT * FROM hive_metastore.ehr_union_clean_metrics.unit_inference_source_name_decisions
