@@ -226,8 +226,8 @@ patterns had no value check, and a PR review pointed out what they could
 catch (HbA1c under `%hemoglobin%`, thyroglobulin under `%globulin%`,
 percentages under `%neutrophils%`). Every name they actually matched in the
 2026-10-28 run was checked against its values and reference ranges (E 8b
-for Part A, F5 for Part C) and is on the list with the same unit, so a
-rerun should give the same counts. F5 lists every Part C group on the
+for Part A, F5 for Part C) and is on the list with the same unit; the full
+rerun with the list gave the same counts. F5 lists every Part C group on the
 list whatever its method: one, "Specific Gravity, URN, Externa" (108),
 gets unitless rather than source_name. A new name with no other evidence now
 shows up as no_concept in 8b (Part A) or needs_review in 15c (Part C).
@@ -239,6 +239,13 @@ concept correction, the UCUM units and the exact source-name list) had every che
 review matching its comment. The README, this file and the charts
 ([charts/make_charts.py](charts/make_charts.py) has the counts typed in)
 carry its counts. After a rerun, update all three from E.
+
+PR #3: Stephanie's five review comments are answered (setup steps and
+column table in the README, exact source-name list, partner-scoped
+relabels, the HDL/total concept correction). Waiting on her answers to
+three questions: canonical labels mEq/L and IU/L as in her REDCap list,
+or our mmol/L and U/L; whether her list's C-peptide ng/L and insulin
+ng/mL are typos; and keeping every test in scope, not only her list's.
 
 ## Not done
 
@@ -256,49 +263,18 @@ carry its counts. After a rerun, update all three from E.
    - Beta-2 glycoprotein IgM (4 records)
    - INR concept: 1,440 records in seconds with median 12, so PT values
      stored under INR. INR's canonical unit is {ratio}, so they show in 19d
-     as no_conversion: `s` and `S` rows, 720 each. Every one of these
-     events is stored twice, once as `s` and once as `S` (F6).
+     as no_conversion (`s` and `S` rows, 720 each: duplicates, below).
    - Reticulocytes [#/volume] by automated count: 312 records in 10\*6/mm3
      with median 4.25, so RBC counts, not reticulocytes (about 0.06)
-   - Expiratory minute volume: `L` and `l` rows, 869 each, also each event
-     stored twice (F6). F7 finds the same in 17 of partner 2084's tests
-     (4,119 events; `S`/`s`, `L`/`l`, `H`/`h`). The `S` -> `s` and `H` -> `h`
+   - Records stored twice (F6, F7): partner 2084 stores 4,119 events in 17
+     tests twice, under unit codes that differ only in case (`S`/`s` on
+     clotting times such as PT, aPTT, INR, ACT, dRVVT; `L`/`l` on
+     expiratory minute volume; `H`/`h` on collection durations). Same
+     person, time and value. The `S` -> `s`, `H` -> `h` and `l` -> `L`
      relabels make both copies convert to the same value. Left as they
      arrived; deduplicating is upstream's call.
    - Tidal volume setting: mL and mL/kg (labeled kg) under one concept
-3. **Write-up for the boss**: drafted as
-   [README.md](README.md), charts from
-   [charts/make_charts.py](charts/make_charts.py) (counts copied from the E
-   run). The scope section ("Why every test", now in
-   exploration_queries.md) rests on this evidence about the original
-   diabetes test list ([exploration_queries.md](exploration_queries.md),
-   "Target variables"), which nobody has a record of; it's reconstructed from
-   exploration_queries.md's queries and outputs:
-   - The list's query sorts concepts into 29 categories with `LIKE` on the
-     OMOP concept name, using clinical labels OMOP names don't contain. 14
-     categories match nothing: ALT, AST, total bilirubin, total protein,
-     serum albumin, urine albumin, uACR, random urine creatinine, HDL, LDL,
-     non-HDL, C-peptide, and eGFR and A/G ratio (both caught first by
-     broader patterns, Creatinine and Globulin). BUN's `%bun%` matches only
-     hCG "beta su**bun**it"; real BUN ("Urea nitrogen") isn't in the list.
-   - Matched categories are too broad: Creatinine takes every x/creatinine
-     ratio (arsenic, metanephrine, ...) and all eGFR, Globulin takes
-     thyroglobulin, SHBG and thyroid-stimulating immunoglobulins, Glucose
-     takes G6PD, Calcium takes stone composition and a channel antibody.
-   - The missing units are mostly elsewhere. Of 1,272,255 numeric records
-     with no unit at all, 17,860 (1.4%) are in concepts the list matched;
-     the bulk is flowsheet data (ETCO2, pain scores, tidal volume, heart
-     rate, MAP, BMI). Of 1,327,684 without a unit concept, 33,608 (2.5%).
-   - Inside the list the problems are mostly unit variants that need
-     conversion (mEq/L vs mmol/L, IU/L vs U/L, spellings), plus mislabels
-     (HbA1c in s/co and g/dL, ionized calcium in %). Conversion is
-     dataset-wide anyway: about 1.01M records needed converting (19a).
-     (exploration_queries.md's sizing query counts unit concept 0 as a unit,
-     so its "concepts with several units" figure overstates.)
-   - Inferring a unit needs other records of the same test as evidence, and
-     once written, the same rules apply to every test.
-
-4. **Canonical-unit judgment calls** (19f, run as an ad hoc query on the
+3. **Canonical-unit judgment calls** (19f, run as an ad hoc query on the
    pre-tiebreaker run; 64 rows). Undecided:
    - AI-READI's REDCap mapping (`_ai_readi_redcap_value_set_mapping_common.csv`
      in the AI-READI DataElementMaps repo; Siggie keeps a copy in the
@@ -306,30 +282,32 @@ carry its counts. After a rerun, update all three from E.
      it differs from ours: Na, K, Cl, total CO2 in mEq/L (ours mmol/L, same
      numbers), AST/ALT/ALP in [iU]/L (equivalent to our [U]/L), urine
      albumin mg/L. It has no temperature. Every test on it that's in the
-     EHR data is harmonized (F2).
+     EHR data is harmonized (F2). Asked Stephanie which labels she wants
+     (PR #3).
    - C-peptide and insulin in the list (CSV lines 509-518): each unit row
      sits under its own question. C-peptide's ng/L doesn't fit our data:
      all 181 records under 3010084 arrived in ng/mL, median 2.74 (2.74 ng/L
      would be far below any C-peptide level). Insulin's ng/mL can't be
      checked: there are no records under its concept 3022466 (Insulin
      [Mass/volume]); F3a found insulin under 3009413 and 3016244 (Insulin
-     [Units/volume]), in uIU/mL.
+     [Units/volume]), in uIU/mL. Asked Stephanie whether these are typos
+     (PR #3).
    - Real choices in the data: CRP mg/L vs mg/dL (51/49), testosterone ng/mL
      vs ng/dL (56/44), T3 ng/dL vs ng/mL, radiation dose cGy vs Gy, 24 h
      urine urea nitrogen g vs mg.
    - Two quantities under one test, so no canonical unit covers both: RA/RV/LV
      lead pacing threshold V vs ms, RV free wall S' mm[Hg] vs cm/s, tidal
      volume setting mL/kg vs mL, ionized calcium mmol/L vs %.
-5. **Relabels whose result still doesn't match** (ad hoc query on
+4. **Relabels whose result still doesn't match** (ad hoc query on
    unit_conversion_medians, relabeled rows): CEA mg/dL -> ng/mL ratio 0.31,
    testosterone ug/dL -> ng/mL ratio 2.29, 24 h urine protein g/[dose] ratio
    0.53, expiratory minute volume `L` and `l` duplicates ratio 1.79.
-6. **HDL mass records that look like ratios** (F4a): 31 records under
+5. **HDL mass records that look like ratios** (F4a): 31 records under
    3007070 "Cholesterol in HDL [Mass/volume]" are under 15 mg/dL (values
    1.8-13), across partners 2084, 3058 and 8469. Only one (2084, value 13,
    same-day total/HDL 13.1) could be matched to that day's lipids; the
    rest have no same-day total and HDL. They're converted as mg/dL for now.
-7. **A/G and BUN/creatinine ratios** (F2, F3c). Albumin/Globulin 3020509
+6. **A/G and BUN/creatinine ratios** (F2, F3c). Albumin/Globulin 3020509
    (1,455 records) and Urea nitrogen/Creatinine 3018311 (1,728) were
    unitless apart from the ones that arrived as {calc}; they now get
    {ratio}, the same class as {calc}. Left over: 4 A/G records whose unit
@@ -352,6 +330,8 @@ carry its counts. After a rerun, update all three from E.
 - In Spark SQL an apostrophe inside a string is `\'`. `''` silently joins two
   strings (`'[APL''U]'` became `[APLU]`).
 - Concept-level rules (e.g. "unitless") apply to every group with that concept.
+- exploration_queries.md's sizing query counts unit concept 0 as a unit, so
+  its "concepts with several units" figure overstates.
 - Some unit codes in the data aren't valid UCUM (`[degC]`, `mL/min/1.73.m2`).
   Map them with a relabel rule, not a factor row, so the code check stays clean.
 - Every `max_by` / `ROW_NUMBER` pick needs a tiebreaker (the unit code or
@@ -368,8 +348,10 @@ carry its counts. After a rerun, update all three from E.
   (Workspace > Import > File) without splitting cells by hand: first line
   `-- Databricks notebook source`, cells separated by
   `-- COMMAND ----------`, no `%sql` lines.
-- After the first import, changed cells come in chat as paste-ready `%sql`
-  blocks, with a note saying which cells changed and that nothing else did.
+- Siggie deletes the notebooks, re-imports every file and reruns A-F from
+  scratch after each change, then exports E and F to `ref_files/` for
+  checking. No paste-ready changed cells needed. Docs carry no Databricks
+  URLs: they change on every re-import.
 - Every query whose result needs looking at gets its own cell;
   table-building statements can share a cell.
 - When several outputs are needed from cells spread across notebooks, put
