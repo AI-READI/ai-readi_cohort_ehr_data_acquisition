@@ -235,16 +235,10 @@ shows up as no_concept in 8b (Part A) or needs_review in 15c (Part C).
 ## Next step
 
 The last full run (Siggie's E_review_outputs.ipynb, 2026-10-28, with the
-concept correction and the UCUM units) had every check empty and every
+concept correction, the UCUM units and the exact source-name list) had every check empty and every
 review matching its comment. The README, this file and the charts
 ([charts/make_charts.py](charts/make_charts.py) has the counts typed in)
 carry its counts. After a rerun, update all three from E.
-
-Not run yet: the source-name list with "Specific Gravity, URN, Externa"
-added (the run without it left those 108 records needs_review). Expected:
-E1 and 20a back to the counts above (Part C unitless 14,784, needs_review
-659); 8b's no_concept only PPD and "Viscosity, Serum"; F5 the 12
-source_name groups plus that one unitless group.
 
 ## Not done
 
