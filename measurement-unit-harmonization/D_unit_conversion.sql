@@ -7,8 +7,8 @@
 -- Unitless records (harmonized = value already) and suspect_concept records
 -- are not touched.
 --
--- A "test" is the measurement concept; for concept 0 it is the
--- measurement_source_value (test_id 'src:<source value>').
+-- A "test" is the harmonized measurement concept (Part A, cell 1d); for
+-- concept 0 it is the measurement_source_value (test_id 'src:<source value>').
 --
 -- How conversion works:
 --   unit_factors   every unit -> a base unit, base = slope * x + intercept.
@@ -44,7 +44,9 @@
 -- ===== D1. Hand-written rule tables =====
 
 -- 17. Unit factors. base is just a label; units convert only within a base
---     (or across bases through an analyte bridge, 17b).
+--     (or across bases through an analyte bridge, 17b). A code with no row
+--     here is its own class: it converts only to itself (identity, when it
+--     is the canonical unit) and is no_conversion otherwise.
 --     unit_code is the UCUM code as OMOP spells it (checked in 17e).
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_factors AS
 SELECT unit_code, base, CAST(slope AS DOUBLE) AS slope,
@@ -157,10 +159,17 @@ FROM VALUES
   ('%{of\'HGB}',       '%',       1,             0, 'same as %'),
   ('%{calc}',          '%',       1,             0, 'same as %'),
   ('mmol/mol',         'mol/mol', 1e-3,          0, NULL),
-  -- unitless ratios
+  -- dimensionless: each its own base, so a ratio never converts to an index
   ('{ratio}',          'ratio',   1,             0, NULL),
   ('{calc}',           'ratio',   1,             0, 'only seen on ratio tests'),
   ('[ratio\'U]',       'ratio',   1,             0, NULL),
+  ('pH',               'pH',      1,             0, NULL),
+  ('{index}',          'index',   1,             0, NULL),
+  ('[score]',          'score',   1,             0, NULL),
+  ('{fraction}',       'fraction', 1,            0, NULL),
+  ('{MOM}',            'MOM',     1,             0, 'multiple of the median'),
+  ('{ISR}',            'ISR',     1,             0, 'immune status ratio'),
+  ('[OD\'U]',          'OD',      1,             0, 'optical density'),
   -- enzyme and international units ([iU] = [U])
   ('[iU]/L',           'U/L',     1,             0, NULL),
   ('[U]/L',            'U/L',     1,             0, 'same as [iU]/L'),
@@ -297,7 +306,8 @@ SELECT * FROM VALUES
   ('^Testosterone .Mass',       'ug/dL',    'ng/mL',    'median 6.8', 2084),
   ('^Glucose$',                 'ng/dL',    'mg/dL',    'value 151', 3058),
   ('^Albumin, External$',       'mg/dL',    'g/dL',     'value 3.9', 3058),
-  ('^Sodium, External$',        'mg/dL',    'mmol/L',   'value 141', 3058)
+  ('^Sodium, External$',        'mg/dL',    'mmol/L',   'value 141', 3058),
+  ('^Cholesterol.total/Cholesterol in HDL', 'mg/dL', '{ratio}', 'value 4.0, same-day total/HDL 4.03 (F4b); corrected from 3023884', 3058)
 AS t(test_pattern, unit_code, treat_as_code, note, data_partner_id);
 
 
@@ -332,18 +342,7 @@ GROUP BY analyte, from_base, to_base HAVING COUNT(*) > 1;
 -- COMMAND ----------
 -- ===== D2. Tests and their units =====
 
--- 18. Keyed view: numeric records in scope, with test_id and effective unit.
---     The MERGE in 20 uses the same keys.
-CREATE OR REPLACE VIEW hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed AS
-SELECT *,
-       CASE WHEN COALESCE(measurement_concept_id, 0) = 0
-            THEN concat('src:', measurement_source_value)
-            ELSE CAST(measurement_concept_id AS STRING)
-       END AS test_id,
-       COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id) AS effective_unit_concept_id
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
-WHERE value_as_number IS NOT NULL
-  AND COALESCE(unit_inference_method, '') <> 'suspect_concept';
+-- 18. Keyed view measurement_unit_keyed: created in Part A (cell 1f).
 
 -- 18a. One row per (partner, test, effective unit)
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_test_units AS
@@ -351,13 +350,14 @@ SELECT k.data_partner_id, k.test_id,
        COALESCE(mc.concept_name, substr(k.test_id, 5)) AS test_name,
        k.unit_concept_id, u.concept_code AS unit_code, k.n
 FROM (
-  SELECT data_partner_id, test_id, max(measurement_concept_id) AS measurement_concept_id,
+  SELECT data_partner_id, test_id,
+         max(harmonized_measurement_concept_id) AS harmonized_measurement_concept_id,
          effective_unit_concept_id AS unit_concept_id, COUNT(*) AS n
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
   WHERE effective_unit_concept_id IS NOT NULL
   GROUP BY data_partner_id, test_id, effective_unit_concept_id
 ) k
-LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.measurement_concept_id, 0)
+LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.harmonized_measurement_concept_id, 0)
 LEFT JOIN omop_vocab.concept u  ON u.concept_id = k.unit_concept_id;
 
 -- 18b. Analyte per test
@@ -622,9 +622,9 @@ ORDER BY test_n DESC;
 MERGE INTO hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
 USING hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions d
 ON  d.data_partner_id = t.data_partner_id
-AND d.test_id = CASE WHEN COALESCE(t.measurement_concept_id, 0) = 0
+AND d.test_id = CASE WHEN COALESCE(t.harmonized_measurement_concept_id, 0) = 0
                      THEN concat('src:', t.measurement_source_value)
-                     ELSE CAST(t.measurement_concept_id AS STRING)
+                     ELSE CAST(t.harmonized_measurement_concept_id AS STRING)
                 END
 AND d.unit_concept_id = COALESCE(NULLIF(t.unit_concept_id, 0), t.inferred_unit_concept_id)
 AND t.value_as_number IS NOT NULL
@@ -662,7 +662,7 @@ SELECT COALESCE(mc.concept_name, k.measurement_source_value) AS test_name,
        percentile_approx(k.value_as_number, array(0.05, 0.5, 0.95)) AS raw_pct,
        percentile_approx(k.harmonized_value_as_number, array(0.05, 0.5, 0.95)) AS kg_pct
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
-LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.measurement_concept_id, 0)
+LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.harmonized_measurement_concept_id, 0)
 LEFT JOIN omop_vocab.concept u  ON u.concept_id = k.effective_unit_concept_id
 WHERE COALESCE(mc.concept_name, k.measurement_source_value) RLIKE '(?i)^body weight'
 GROUP BY 1, 2, 3, 4, 5
@@ -678,7 +678,7 @@ WITH w AS (
   SELECT k.person_id, k.data_partner_id, u.concept_code AS unit,
          percentile_approx(k.harmonized_value_as_number, 0.5) AS kg
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
-  JOIN omop_vocab.concept mc ON mc.concept_id = k.measurement_concept_id
+  JOIN omop_vocab.concept mc ON mc.concept_id = k.harmonized_measurement_concept_id
   JOIN omop_vocab.concept u  ON u.concept_id = k.effective_unit_concept_id
   WHERE mc.concept_name = 'Body weight'
     AND u.concept_code IN ('kg', '[lb_us]')

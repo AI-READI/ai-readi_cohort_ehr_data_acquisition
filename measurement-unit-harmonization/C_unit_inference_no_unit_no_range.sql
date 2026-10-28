@@ -4,24 +4,27 @@
 -- ETCO2, pain scores, tidal volume, MAP).
 --
 -- A group is (data_partner_id, test_id); test_id as in Part D (the
--- measurement concept, or 'src:<source value>' for concept 0).
+-- harmonized measurement concept, or 'src:<source value>' for concept 0).
 -- Each group gets the first of:
 --   1. unit_no_range_rules  name pattern on the test name (unitless,
 --                           explicit, suspect_concept, not_a_quantity,
 --                           value_split)
 --   2. unit_concept_rules   Part A's hand rules by concept (pH, INR, ...)
---   3. partner_unit / dataset_unit / unitless
+--   3. partner_unit / dataset_unit
 --                           copied from records of the same test that have a
---                           unit (or are unitless): same partner first, then
---                           any partner, most records first. A candidate only
---                           counts if the group's median is within a factor of
---                           2 of the candidate's median.
+--                           unit: same partner first, then any partner, most
+--                           records first. A candidate only counts if the
+--                           group's median is within a factor of 2 of the
+--                           candidate's median.
 --   4. source_name          concept 0 only: Part A's unit_source_name_rules
 --   5. needs_review
 -- Method names are Part A's; range_high IS NULL tells Part C records apart.
 -- value_split groups hold two units, or a unit and a different test; the
 -- MERGE (16) gives each record the unit and method of the value band it
 -- falls in (unit_no_range_value_rules).
+-- Ratios, indexes, scores and pH get their UCUM units ({ratio}, {index},
+-- [score], pH, ...); unitless is left for counts, Ct values and RAST class,
+-- which have none.
 --
 -- Records in scope are picked by their RAW columns (no unit string, no unit
 -- concept, no range_high), never by inferred_unit_concept_id, so rerunning
@@ -39,9 +42,9 @@
 -- 13. Records in scope, and the records that can serve as evidence for them
 CREATE OR REPLACE VIEW hive_metastore.ehr_union_clean_metrics.unit_no_range_records AS
 SELECT h.*,
-       CASE WHEN COALESCE(h.measurement_concept_id, 0) = 0
+       CASE WHEN COALESCE(h.harmonized_measurement_concept_id, 0) = 0
             THEN concat('src:', h.measurement_source_value)
-            ELSE CAST(h.measurement_concept_id AS STRING)
+            ELSE CAST(h.harmonized_measurement_concept_id AS STRING)
        END AS test_id
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized h
 WHERE h.value_as_number IS NOT NULL
@@ -49,18 +52,21 @@ WHERE h.value_as_number IS NOT NULL
   AND COALESCE(h.unit_concept_id, 0) = 0
   AND h.range_high IS NULL;
 
--- 13a. Evidence: every other numeric record with a unit or marked unitless.
---      unit_concept_id NULL here means unitless.
+-- 13a. Evidence: every other numeric record with a unit. Unitless records
+--      don't count: what's left unitless (specific gravity, counts) gets
+--      that from a rule, not from other records.
+--      measurement_unit_keyed is created in Part A (cell 1f).
 CREATE OR REPLACE VIEW hive_metastore.ehr_union_clean_metrics.unit_no_range_evidence AS
 SELECT data_partner_id, test_id, effective_unit_concept_id AS unit_concept_id, value_as_number
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
-WHERE (effective_unit_concept_id IS NOT NULL OR unit_inference_method = 'unitless')
+WHERE effective_unit_concept_id IS NOT NULL
   AND NOT (unit_source_value IS NULL
            AND COALESCE(unit_concept_id, 0) = 0
            AND range_high IS NULL);
 
 -- 13b. Review: overall shape
-SELECT CASE WHEN COALESCE(r.measurement_concept_id, 0) = 0 THEN 'concept 0' ELSE 'has concept' END AS concept,
+SELECT CASE WHEN COALESCE(r.harmonized_measurement_concept_id, 0) = 0 THEN 'concept 0'
+            ELSE 'has concept' END AS concept,
        mt.concept_name AS measurement_type,
        r.range_low IS NOT NULL AS has_range_low,
        COUNT(*) AS n,
@@ -89,7 +95,7 @@ WITH t AS (
          avg(CASE WHEN r.value_as_number = floor(r.value_as_number) THEN 1D ELSE 0D END) AS frac_integer,
          COUNT(DISTINCT r.value_as_number) AS n_distinct
   FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
-  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(r.measurement_concept_id, 0)
+  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(r.harmonized_measurement_concept_id, 0)
   GROUP BY r.test_id, mc.concept_name
 ),
 ev AS (
@@ -113,7 +119,7 @@ ORDER BY t.n DESC;
 -- 13d. Lookup: OMOP UCUM spellings for units the name rules need.
 --      'data' rows: the unit concepts that unit strings like dynes-sec/cm5
 --      and mph already carry in the table. 'UCUM' rows: candidate concepts.
---      Rules 41 and 42 in cell 14 (SVR) use the codes found here (OMOP
+--      Rules 45 and 46 in cell 14 (SVR) use the codes found here (OMOP
 --      spells the two inconsistently: dyn.sec/cm5, dyn.s/cm5/m2). There is
 --      no mile-per-hour concept, so Treadmill MPH has no rule.
 SELECT 'data' AS src, m.unit_source_value AS unit_string, u.concept_id, u.concept_code,
@@ -153,65 +159,68 @@ SELECT * FROM VALUES
   -- before the % rule: these names contain % but aren't percentages
   ( 2, '(?i)[(]min[)]',                                     'explicit', 'min', 'sleep study: SpO2 < 90% (min), recording duration (min)'),
   ( 3, '(?-i:AHI|RDI)|^ODI|(?i)apnea index|arousal index|plm index', 'explicit', '/h', 'sleep study events per hour'),
-  -- counts, scores, other unitless
+  -- counts, indexes, scores, ratios
   ( 4, '(?i)number of|.#]|^units ordered$|fractions delivered', 'unitless', NULL, 'counts'),
-  ( 5, '(?i)score|scale|coma|morse fall|withdrawal assessment|physical status classification|train of four|NRS_2002|activities of daily living|abbreviated mental test|bispectral index|angina index',
-       'unitless', NULL, 'scores and scales'),
-  ( 6, '(?i)^pain|pain (level|intensity|rating|severity)',  'unitless', NULL, 'pain scales'),
-  ( 7, '(?i)mom$|ct value|cup disc ratio|^E/E. ratio|^albumin/globulin', 'unitless', NULL, 'multiples of median, Ct values, ratios'),
+  ( 5, '(?i)bispectral index|angina index',                 'explicit', '{index}', 'indexes'),
+  ( 6, '(?i)score|scale|coma|morse fall|withdrawal assessment|physical status classification|train of four|NRS_2002|activities of daily living|abbreviated mental test',
+       'explicit', '[score]', 'scores and scales'),
+  ( 7, '(?i)^pain|pain (level|intensity|rating|severity)',  'explicit', '[score]', 'pain scales'),
+  ( 8, '(?i)mom$',                                          'explicit', '{MOM}', 'multiples of the median'),
+  ( 9, '(?i)ct value',                                      'unitless', NULL, 'Ct values'),
+  (10, '(?i)cup disc ratio|^E/E. ratio|^albumin/globulin',  'explicit', '{ratio}', 'ratios'),
   -- vitals and ventilator
-  ( 8, '(?i)^end tidal carbon dioxide|mean arterial pressure|^central venous pressure|intraocular pressure|^treadmill BP',
+  (11, '(?i)^end tidal carbon dioxide|mean arterial pressure|^central venous pressure|intraocular pressure|^treadmill BP',
        'explicit', 'mm[Hg]', 'ETCO2 median 35, MAP 81-88, CVP 9, IOP 14'),
-  ( 9, '(?i)airway pressure|inspiratory pressure|^PEEP',   'explicit', 'cm[H2O]', 'medians 11-21'),
-  (10, '(?i)^expiratory tidal volume|^fluid (output|intake)|^parenteral fluid input',
+  (12, '(?i)airway pressure|inspiratory pressure|^PEEP',   'explicit', 'cm[H2O]', 'medians 11-21'),
+  (13, '(?i)^expiratory tidal volume|^fluid (output|intake)|^parenteral fluid input',
        'explicit', 'mL', 'tidal volume median 461; fluid totals'),
-  (11, '(?i)^respiratory rate$|(treadmill|infusion|custom) HR|^pulse rate', 'explicit', '/min', NULL),
-  (12, '(?i)^body surface area',                            'explicit', 'm2', 'median 1.97'),
+  (14, '(?i)^respiratory rate$|(treadmill|infusion|custom) HR|^pulse rate', 'explicit', '/min', NULL),
+  (15, '(?i)^body surface area',                            'explicit', 'm2', 'median 1.97'),
   -- EKG
-  (13, '(?i)^(R-R|Q-T|P-R|PP) interval|^QRS duration',      'explicit', 'ms', NULL),
-  (14, '(?i)^(P wave|QRS|T wave) axis',                     'explicit', 'deg', NULL),
+  (16, '(?i)^(R-R|Q-T|P-R|PP) interval|^QRS duration',      'explicit', 'ms', NULL),
+  (17, '(?i)^(P wave|QRS|T wave) axis',                     'explicit', 'deg', NULL),
   -- eye
-  (15, '(?i)corneal thickness',                             'explicit', 'um', 'median 550'),
-  (16, '(?i)margin reflex distance|levator lift|exophthalmometry|scleral show', 'explicit', 'mm', NULL),
+  (18, '(?i)corneal thickness',                             'explicit', 'um', 'median 550'),
+  (19, '(?i)margin reflex distance|levator lift|exophthalmometry|scleral show', 'explicit', 'mm', NULL),
   -- pulmonary function
-  (17, '(?i)^forced vital capacity .volume.|^residual volume --pre', 'explicit', 'L', NULL),
-  (18, '(?i)^gas flow FEV|^FEF25-75-Pre$',                  'explicit', 'L/s', NULL),
-  (19, '(?i)^diffusion capacity.carbon monoxide$',          'explicit', 'mL/min/mm[Hg]', 'median 16.1'),
+  (20, '(?i)^forced vital capacity .volume.|^residual volume --pre', 'explicit', 'L', NULL),
+  (21, '(?i)^gas flow FEV|^FEF25-75-Pre$',                  'explicit', 'L/s', NULL),
+  (22, '(?i)^diffusion capacity.carbon monoxide$',          'explicit', 'mL/min/mm[Hg]', 'median 16.1'),
   -- cardiac devices
-  (20, '(?i)impedance',                                     'explicit', 'Ohm', NULL),
-  (21, '(?i)intrinsic amplitude',                           'explicit', 'mV', NULL),
-  (22, '(?i)threshold amplitude|^battery voltage',          'explicit', 'V', NULL),
+  (23, '(?i)impedance',                                     'explicit', 'Ohm', NULL),
+  (24, '(?i)intrinsic amplitude',                           'explicit', 'mV', NULL),
+  (25, '(?i)threshold amplitude|^battery voltage',          'explicit', 'V', NULL),
   -- times, speeds
-  (23, '(?i)^sleep latency|^total sleep time|^total minutes walked', 'explicit', 'min', NULL),
-  (24, '(?i)^elapsed days|^days sensor worn',               'explicit', 'd', NULL),
+  (26, '(?i)^sleep latency|^total sleep time|^total minutes walked', 'explicit', 'min', NULL),
+  (27, '(?i)^elapsed days|^days sensor worn',               'explicit', 'd', NULL),
   -- (no rule for Treadmill MPH: [mi_i]/h isn't an OMOP UCUM concept, and 13d found no other mile-per-hour unit)
   -- percentages and units in the name
-  (26, '(?i)predicted|%pred|percent|%|spo2|^oximetry|^infusion O2|/leukocytes in blood', 'explicit', '%', NULL),
-  (27, '(?i)mg/dl$',                                        'explicit', 'mg/dL', NULL),
+  (28, '(?i)predicted|%pred|percent|%|spo2|^oximetry|^infusion O2|/leukocytes in blood', 'explicit', '%', NULL),
+  (29, '(?i)mg/dl$',                                        'explicit', 'mg/dL', NULL),
   -- from the 15b/15c review: groups that mix units, and tests whose median
   -- missed the factor-2 check or that Part A's source-name rules got wrong
-  (28, '(?i)^body temperature$|^protein/creatinine ratio, exte', 'value_split', NULL,
+  (30, '(?i)^body temperature$|^protein/creatinine ratio, exte', 'value_split', NULL,
        'one group holds two units: Cel and [degF]; mg/mg and mg/g'),
-  (29, '(?i)^ph[ ,-]|saturation fraction|^cholesterol/HDL ratio|^apolipoprotein B/apolipoprotein A|^dRVVT|^TID$',
-       'unitless', NULL, 'pH, saturation fractions, ratios'),
-  (30, '(?i)^hepatitis B virus surface Ab .units/volume.', 'explicit', '10*-3.[iU]/mL', 'labeled records are mIU/mL; most values near 0'),
-  (31, '(?i)^tacrolimus, external',                         'explicit', 'ng/mL', NULL),
-  (32, '(?i)^mycophenolic acid, external',                  'explicit', 'ug/mL', NULL),
-  (33, '(?i)^(erythrocytes|leukocytes) .#/area. in urine sediment', 'explicit', '/[HPF]', 'values capped at 50'),
-  (34, '(?i)^battery remaining longevity',                  'explicit', 'mo', 'median 59; labeled records are years, median 7.5'),
-  (35, '(?i)^creatinine clearance',                         'explicit', 'mL/min', NULL),
-  (36, '(?i)^calcium/24 hr',                                'explicit', 'mg/(24.h)', NULL),
-  (37, '(?i)^immunoglobulin G, external',                   'explicit', 'mg/dL', 'value 637'),
-  (38, '(?i)^cortisol stimulation interval',                'explicit', 'min', NULL),
-  (39, '(?i)^glucose tolerance dose info',                  'explicit', 'g', '75 g dose'),
-  (40, '(?i)^1,25 dihydroxy vitamin d',                     'explicit', 'pg/mL', NULL),
+  (31, '(?i)^ph[ ,-]',                                      'explicit', 'pH', NULL),
+  (32, '(?i)saturation fraction',                           'explicit', '{fraction}', NULL),
+  (33, '(?i)^cholesterol/HDL ratio|^apolipoprotein B/apolipoprotein A|^dRVVT|^TID$',
+       'explicit', '{ratio}', 'total/HDL, apoB/apoA, dRVVT ratio, transient ischemic dilation'),
+  (34, '(?i)^hepatitis B virus surface Ab .units/volume.', 'explicit', '10*-3.[iU]/mL', 'labeled records are mIU/mL; most values near 0'),
+  (35, '(?i)^tacrolimus, external',                         'explicit', 'ng/mL', NULL),
+  (36, '(?i)^mycophenolic acid, external',                  'explicit', 'ug/mL', NULL),
+  (37, '(?i)^(erythrocytes|leukocytes) .#/area. in urine sediment', 'explicit', '/[HPF]', 'values capped at 50'),
+  (38, '(?i)^battery remaining longevity',                  'explicit', 'mo', 'median 59; labeled records are years, median 7.5'),
+  (39, '(?i)^creatinine clearance',                         'explicit', 'mL/min', NULL),
+  (40, '(?i)^calcium/24 hr',                                'explicit', 'mg/(24.h)', NULL),
+  (41, '(?i)^immunoglobulin G, external',                   'explicit', 'mg/dL', 'value 637'),
+  (42, '(?i)^cortisol stimulation interval',                'explicit', 'min', NULL),
+  (43, '(?i)^glucose tolerance dose info',                  'explicit', 'g', '75 g dose'),
+  (44, '(?i)^1,25 dihydroxy vitamin d',                     'explicit', 'pg/mL', NULL),
   -- Part C leftovers. SVR codes from the 13d lookup.
-  (41, '(?i)^systemic vascular resistance index$',          'explicit', 'dyn.s/cm5/m2', 'normal 1970-2390'),
-  (42, '(?i)^systemic vascular resistance$',                'explicit', 'dyn.sec/cm5', 'normal 800-1200'),
-  (43, '(?i)radioallergosorbent',                           'unitless', NULL, 'RAST class 0-6'),
-  (44, '(?i)^residual volume/total capacity',               'value_split', NULL, 'RV/TLC % paired with TLC in L (15f)'),
-  -- beats Part A's concept rule (suspect_concept) for 3023884
-  (45, '(?i)^cholesterol in HDL/cholesterol.total .mass ratio.', 'value_split', NULL, 'values over 1 are total/HDL; stored inverted')
+  (45, '(?i)^systemic vascular resistance index$',          'explicit', 'dyn.s/cm5/m2', 'normal 1970-2390'),
+  (46, '(?i)^systemic vascular resistance$',                'explicit', 'dyn.sec/cm5', 'normal 800-1200'),
+  (47, '(?i)radioallergosorbent',                           'unitless', NULL, 'RAST class 0-6'),
+  (48, '(?i)^residual volume/total capacity',               'value_split', NULL, 'RV/TLC % paired with TLC in L (15f)')
 AS t(priority, test_pattern, rule, unit_code, note);
 
 -- 14a. Check: explicit rules without a valid UCUM code, and the reverse
@@ -231,7 +240,7 @@ WITH t AS (
   SELECT r.test_id, COALESCE(mc.concept_name, max(r.measurement_source_value)) AS test_name,
          COUNT(*) AS n, percentile_approx(r.value_as_number, 0.5) AS median
   FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
-  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(r.measurement_concept_id, 0)
+  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(r.harmonized_measurement_concept_id, 0)
   GROUP BY r.test_id, mc.concept_name
 )
 SELECT ru.priority, ru.test_pattern, ru.rule, ru.unit_code, t.test_name, t.n, t.median,
@@ -245,9 +254,8 @@ ORDER BY ru.priority, t.n DESC;
 -- 14c. Value bands for value_split tests: value_min <= value < value_max,
 --      NULL meaning unbounded. A test's bands must cover every value with
 --      no overlap. method is value_split for a band with a unit, otherwise
---      unitless, reciprocal (unitless, harmonized value is 1/value),
---      needs_review or suspect_concept. Each value_split test must match
---      one test_pattern only.
+--      unitless, needs_review or suspect_concept. Each value_split test
+--      must match one test_pattern only.
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_no_range_value_rules AS
 SELECT * FROM VALUES
   -- body temperature: 45 Cel is beyond survivable, 80 [degF] is deep hypothermia
@@ -262,10 +270,7 @@ SELECT * FROM VALUES
   -- (100 * RV / low = high in all 214 exams, 15f). TLC max 7.91; the six
   -- ratios under 8 pair with RV of 0.02-0.2 L, so they're bad data anyway.
   ('(?i)^residual volume/total capacity', NULL, 8D,   NULL,     'suspect_concept', 'TLC in L under the RV/TLC concept'),
-  ('(?i)^residual volume/total capacity', 8D,   NULL, '%',      'value_split',  NULL),
-  -- HDL/total can't exceed 1; values over 1 (median 3.5) are total/HDL
-  ('(?i)^cholesterol in HDL/cholesterol.total .mass ratio.', NULL, 1D, NULL, 'unitless',   NULL),
-  ('(?i)^cholesterol in HDL/cholesterol.total .mass ratio.', 1D, NULL, NULL, 'reciprocal', 'total/HDL, inverted')
+  ('(?i)^residual volume/total capacity', 8D,   NULL, '%',      'value_split',  NULL)
 AS t(test_pattern, value_min, value_max, unit_code, method, note);
 
 -- 14d. Check: should be empty. Bad codes, gaps, overlaps, open ends.
@@ -283,7 +288,7 @@ WITH v AS (
 SELECT * FROM (
   SELECT CASE WHEN v.unit_code IS NOT NULL AND v.ucum_concept_id IS NULL THEN 'not a UCUM code'
               WHEN (v.method = 'value_split') <> (v.unit_code IS NOT NULL)
-                OR v.method NOT IN ('value_split', 'unitless', 'reciprocal', 'needs_review', 'suspect_concept')
+                OR v.method NOT IN ('value_split', 'unitless', 'needs_review', 'suspect_concept')
                                                                          THEN 'method and unit_code disagree'
               WHEN v.rn = 1 AND v.value_min IS NOT NULL                  THEN 'first band has a lower bound'
               WHEN v.rn = v.n_bands AND v.value_max IS NOT NULL          THEN 'last band has an upper bound'
@@ -302,14 +307,14 @@ SELECT * FROM (
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions AS
 WITH g AS (
   SELECT r.data_partner_id, r.test_id,
-         max(r.measurement_concept_id) AS measurement_concept_id,
+         max(r.harmonized_measurement_concept_id) AS harmonized_measurement_concept_id,
          COALESCE(mc.concept_name, max(r.measurement_source_value)) AS test_name,
          max(r.measurement_source_value) AS measurement_source_value,
          COUNT(*) AS n,
          percentile_approx(r.value_as_number, array(0.05, 0.5, 0.95)) AS pct,
          avg(CASE WHEN r.value_as_number = floor(r.value_as_number) THEN 1D ELSE 0D END) AS frac_integer
   FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
-  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(r.measurement_concept_id, 0)
+  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(r.harmonized_measurement_concept_id, 0)
   GROUP BY r.data_partner_id, r.test_id, mc.concept_name
 ),
 ev AS (
@@ -332,7 +337,8 @@ ev_units AS (
          array_join(transform(
            array_sort(collect_list(named_struct(
              'k', -c.n_ev,
-             's', concat(COALESCE(u.concept_code, 'unitless'), ' n=', CAST(c.n_ev AS STRING),
+             's', concat(COALESCE(u.concept_code, CAST(c.unit_concept_id AS STRING)),
+                         ' n=', CAST(c.n_ev AS STRING),
                          ' med=', CAST(round(c.med_ev, 3) AS STRING))))),
            x -> x.s), '; ') AS evidence_units
   FROM cand c
@@ -368,7 +374,7 @@ src_rule AS (
     SELECT t.test_id, r.rule, r.unit_code, r.pattern,
            ROW_NUMBER() OVER (PARTITION BY t.test_id ORDER BY r.priority) AS rk
     FROM (SELECT DISTINCT test_id, measurement_source_value FROM g
-          WHERE measurement_concept_id = 0) t
+          WHERE harmonized_measurement_concept_id = 0) t
     JOIN hive_metastore.ehr_union_clean_metrics.unit_source_name_rules r
       ON lower(t.measurement_source_value) LIKE r.pattern
   ) WHERE rk = 1
@@ -382,17 +388,16 @@ hand AS (
   FROM g
   LEFT JOIN name_rule nr ON nr.test_id = g.test_id
   LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_concept_rules cr
-    ON cr.measurement_concept_id = NULLIF(g.measurement_concept_id, 0)
+    ON cr.measurement_concept_id = NULLIF(g.harmonized_measurement_concept_id, 0)
 )
-SELECT g.data_partner_id, g.test_id, g.measurement_concept_id, g.test_name,
+SELECT g.data_partner_id, g.test_id, g.harmonized_measurement_concept_id, g.test_name,
        g.n, g.pct[0] AS p05, g.pct[1] AS med, g.pct[2] AS p95,
        round(g.frac_integer, 2) AS frac_integer,
        CASE
-         WHEN h.rule IS NOT NULL                              THEN h.rule
-         WHEN p.lvl IS NOT NULL AND p.unit_concept_id IS NULL THEN 'unitless'
-         WHEN p.lvl = 2                                       THEN 'partner_unit'
-         WHEN p.lvl = 3                                       THEN 'dataset_unit'
-         WHEN s.rule IS NOT NULL                              THEN s.rule
+         WHEN h.rule IS NOT NULL THEN h.rule
+         WHEN p.lvl = 2          THEN 'partner_unit'
+         WHEN p.lvl = 3          THEN 'dataset_unit'
+         WHEN s.rule IS NOT NULL THEN s.rule
          ELSE 'needs_review'
        END AS unit_inference_method,
        CASE
@@ -484,7 +489,7 @@ SELECT k.test_id, COALESCE(mc.concept_name, max(k.measurement_source_value)) AS 
        COUNT(*) AS n,
        percentile_approx(k.value_as_number, array(0.05, 0.25, 0.5, 0.75, 0.95)) AS pct
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
-LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.measurement_concept_id, 0)
+LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.harmonized_measurement_concept_id, 0)
 LEFT JOIN omop_vocab.concept u  ON u.concept_id = k.effective_unit_concept_id
 WHERE COALESCE(mc.concept_name, k.measurement_source_value)
         RLIKE '(?i)residual volume|total (lung )?capacity|^TLC|RV/TLC'
@@ -498,9 +503,9 @@ ORDER BY test_name, n DESC;
 --      100 * RV / low should equal high. One row per exam; match_2pt counts
 --      exams where they agree within 2 points.
 WITH r AS (
-  SELECT person_id, measurement_date, measurement_concept_id AS c, value_as_number AS v
+  SELECT person_id, measurement_date, harmonized_measurement_concept_id AS c, value_as_number AS v
   FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records
-  WHERE measurement_concept_id IN (21493446, 21493126)  -- RV/TLC, RV
+  WHERE harmonized_measurement_concept_id IN (21493446, 21493126)  -- RV/TLC, RV
 ),
 e AS (
   SELECT person_id, measurement_date,
@@ -544,9 +549,9 @@ USING (
     AND vu.invalid_reason IS NULL
 ) d
 ON  t.data_partner_id = d.data_partner_id
-AND d.test_id = CASE WHEN COALESCE(t.measurement_concept_id, 0) = 0
+AND d.test_id = CASE WHEN COALESCE(t.harmonized_measurement_concept_id, 0) = 0
                      THEN concat('src:', t.measurement_source_value)
-                     ELSE CAST(t.measurement_concept_id AS STRING)
+                     ELSE CAST(t.harmonized_measurement_concept_id AS STRING)
                 END
 AND t.value_as_number IS NOT NULL
 AND t.unit_source_value IS NULL
@@ -561,7 +566,5 @@ WHEN MATCHED THEN UPDATE SET
   t.canonical_unit_concept_id  = NULL,
   t.canonical_unit_value       = NULL,
   t.unit_conversion_method     = NULL,
-  t.harmonized_value_as_number = CASE d.unit_inference_method
-                                      WHEN 'unitless'   THEN t.value_as_number
-                                      WHEN 'reciprocal' THEN try_divide(1, t.value_as_number)
-                                 END;
+  t.harmonized_value_as_number = CASE WHEN d.unit_inference_method = 'unitless'
+                                      THEN t.value_as_number END;

@@ -10,6 +10,8 @@
 
 -- 10. Hand map of unit strings. rule = 'unit' | 'unitless' | 'not_a_unit'.
 --     unit_code is the UCUM code as OMOP spells it (checked in 10b).
+--     unitless only where UCUM has no unit for it; ratios, indexes and the
+--     like map to their UCUM codes ({ratio}, {index}, ...).
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_string_map AS
 SELECT * FROM VALUES
   -- eGFR spellings
@@ -158,15 +160,16 @@ SELECT * FROM VALUES
   ('EU/dL (mg/dL)',      'unit', '[EU]/dL', 'urobilinogen'),
   ('{Ehrlich\'U}',       'unit', '[EU]/dL', 'urobilinogen'),
   ('EHRLICH UNITS',      'unit', '[EU]/dL', 'urobilinogen'),
-  -- unitless
-  ('{ratio}',            'unitless', NULL, NULL),
-  ('A/G Ratio',          'unitless', NULL, NULL),
-  ('Index',              'unitless', NULL, NULL),
-  ('{index_val}',        'unitless', NULL, NULL),
-  ('TSI Index',          'unitless', NULL, NULL),
-  ('ISR',                'unitless', NULL, 'index of serum reactivity'),
-  ('S/CO',               'unitless', NULL, 'signal to cutoff'),
-  ('OD',                 'unitless', NULL, 'optical density'),
+  -- dimensionless units
+  ('{ratio}',            'unit', '{ratio}', NULL),
+  ('A/G Ratio',          'unit', '{ratio}', NULL),
+  ('S/CO',               'unit', '{ratio}', 'signal to cutoff'),
+  ('Index',              'unit', '{index}', NULL),
+  ('{index_val}',        'unit', '{index}', NULL),
+  ('TSI Index',          'unit', '{index}', NULL),
+  ('ISR',                'unit', '{ISR}', 'immune status ratio'),
+  ('OD',                 'unit', '[OD\'U]', 'optical density'),
+  -- unitless: no UCUM unit
   ('ACTIVITY COEFF',     'unitless', NULL, NULL),
   -- not a unit
   ('Urine',              'not_a_unit', NULL, NULL),
@@ -206,7 +209,7 @@ WHERE m.rule = 'unit' AND ru.concept_id IS NULL;
 -- 11. Decisions: one row per unit string that lacks a unit concept
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_string_decisions AS
 WITH need AS (
-  SELECT unit_source_value, measurement_concept_id, COUNT(*) AS n
+  SELECT unit_source_value, harmonized_measurement_concept_id, COUNT(*) AS n
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
   WHERE value_as_number IS NOT NULL
     AND unit_source_value IS NOT NULL
@@ -215,7 +218,8 @@ WITH need AS (
 ),
 s AS (
   SELECT unit_source_value, SUM(n) AS n,
-         max_by(measurement_concept_id, struct(n, measurement_concept_id)) AS top_concept_id
+         max_by(harmonized_measurement_concept_id, struct(n, harmonized_measurement_concept_id))
+           AS top_concept_id
   FROM need GROUP BY 1
 ),
 have AS (

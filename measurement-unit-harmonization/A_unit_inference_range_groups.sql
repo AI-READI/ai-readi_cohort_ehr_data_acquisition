@@ -17,6 +17,16 @@
 --           unitless, suspect_concept, needs_review, no_concept
 --   Part B: mapped_string, reused_mapping, unitless, not_a_unit, unmapped_string
 --
+-- Setup also fills harmonized_measurement_concept_id: the record's
+-- measurement_concept_id, or its replacement where
+-- measurement_concept_corrections says the concept is wrong. Parts A-D
+-- group records by it; measurement_concept_id stays as it arrived.
+--
+-- Units: real UCUM codes where OMOP has one, including the dimensionless
+-- ones (pH, {ratio}, {index}, [score], {fraction}, {MOM}, {ISR}, [OD'U]).
+-- unitless is left for what has no UCUM unit: specific gravity, counts,
+-- Ct values, activity coefficients, RAST class.
+--
 -- canonical_unit_concept_id, canonical_unit_value, unit_conversion_method and
 -- harmonized_value_as_number are filled in Part D; only unitless records get
 -- harmonized_value_as_number here. Every apply (A, B, C) clears the Part D
@@ -36,6 +46,7 @@
 
 -- 1. Target table: a full copy of ehr_union_clean.measurement plus the added
 --    columns. Does nothing if the table exists.
+--      harmonized_measurement_concept_id  the test, corrected (cell 1d)
 --      unit_inference_method       how the unit was decided
 --      inferred_unit_concept_id    the record's unit (UCUM concept)
 --      inferred_unit_source_value  its UCUM code
@@ -44,8 +55,10 @@
 --      canonical_unit_value        its UCUM code
 --      harmonized_value_as_number  value in the canonical unit (unitless: value)
 --      unit_conversion_method      how it was converted (Part D)
+-- DROP TABLE EXISTS hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized;
 CREATE TABLE IF NOT EXISTS hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized AS
 SELECT m.*,
+       CAST(NULL AS BIGINT) AS harmonized_measurement_concept_id,
        CAST(NULL AS STRING) AS inferred_unit_source_value,
        CAST(NULL AS BIGINT) AS inferred_unit_concept_id,
        CAST(NULL AS STRING) AS canonical_unit_value,
@@ -54,13 +67,6 @@ SELECT m.*,
        CAST(NULL AS STRING) AS unit_inference_method,
        CAST(NULL AS STRING) AS unit_conversion_method
 FROM hive_metastore.ehr_union_clean.measurement m;
-
--- COMMAND ----------
-
--- 1a. Add unit_conversion_method to a table created before it existed
---     (run once; errors harmlessly if it already exists)
-ALTER TABLE hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
-  ADD COLUMNS (unit_conversion_method STRING);
 
 -- COMMAND ----------
 
@@ -84,27 +90,80 @@ WHEN MATCHED THEN UPDATE SET
 
 -- COMMAND ----------
 
+-- 1d. Concept corrections. Last result: check 1e, should be empty.
+--     Records filed under the wrong concept: harmonized_measurement_concept_id
+--     gets the right one; every other record gets its own concept (0 when
+--     NULL). Rerunnable. A change here needs a full rerun of A-D, which group
+--     by this column.
+--     implausible_max: a corrected record at or below this value can't be
+--     the new concept, and shows up in the check below.
+CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections AS
+SELECT * FROM VALUES
+  (3023884, 3011163, 1D,
+   'Filed as HDL/total, but every value is total/HDL (1.5-34, median 3.5): 6,454 of 6,457 Part C records and 5 of 6 Part A records equal the same person\'s same-day total/HDL (F4a); the rest have no same-day lipids. Partner 2084 files the same ratio under 3011163.')
+AS t(measurement_concept_id, harmonized_measurement_concept_id, implausible_max, note);
+
+UPDATE hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
+SET harmonized_measurement_concept_id = COALESCE(measurement_concept_id, 0)
+WHERE harmonized_measurement_concept_id IS DISTINCT FROM COALESCE(measurement_concept_id, 0);
+
+MERGE INTO hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+USING hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections c
+ON t.measurement_concept_id = c.measurement_concept_id
+WHEN MATCHED THEN UPDATE SET
+  t.harmonized_measurement_concept_id = c.harmonized_measurement_concept_id;
+
+-- 1e. Check: corrected records whose value doesn't fit the new concept.
+--     Should return no rows.
+SELECT t.data_partner_id, t.measurement_concept_id, t.harmonized_measurement_concept_id,
+       COUNT(*) AS n, min(t.value_as_number) AS min_value, max(t.value_as_number) AS max_value
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+JOIN hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections c
+  ON c.measurement_concept_id = t.measurement_concept_id
+WHERE t.value_as_number <= c.implausible_max
+GROUP BY 1, 2, 3;
+
+-- COMMAND ----------
+
+-- 1f. Keyed view: numeric records in scope, with test_id and effective
+--     unit. Parts C and D read it; D's MERGE (cell 20) uses the same keys.
+--     The view's columns are fixed when it is created (SELECT * is expanded
+--     then), so rerun this cell whenever the table is recreated or altered.
+CREATE OR REPLACE VIEW hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed AS
+SELECT *,
+       CASE WHEN COALESCE(harmonized_measurement_concept_id, 0) = 0
+            THEN concat('src:', measurement_source_value)
+            ELSE CAST(harmonized_measurement_concept_id AS STRING)
+       END AS test_id,
+       COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id) AS effective_unit_concept_id
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
+WHERE value_as_number IS NOT NULL
+  AND COALESCE(unit_inference_method, '') <> 'suspect_concept';
+
+-- COMMAND ----------
+
 -- ===== A2. Rules, working views and decisions. Last result: check, should be empty =====
 
--- 2. Hand rules by concept.
---    unitless        : no unit expected (pH, specific gravity, INR, ratios, indexes, scores)
+-- 2. Hand rules by concept (the harmonized concept, cell 1d).
+--    unitless        : no unit expected and no UCUM unit for it (specific gravity)
 --    suspect_concept : values don't fit the concept; looks like a concept-mapping error
 --    explicit        : unit decided by hand, given as a UCUM code and looked up in cell 4
+--                      (pH, ratios, indexes and scores have UCUM units too)
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_concept_rules AS
 SELECT * FROM VALUES
   -- pH
-  (3022621,  'unitless', CAST(NULL AS STRING), 'pH of Urine by Test strip'),
-  (3029305,  'unitless', NULL, 'pH of Urine by Automated test strip'),
-  (3015736,  'unitless', NULL, 'pH of Urine'),
-  (3015501,  'unitless', NULL, 'pH of 24 hour Urine'),
-  (3019977,  'unitless', NULL, 'pH of Arterial blood'),
-  (3029473,  'unitless', NULL, 'pH of Arterial blood, temp adjusted'),
-  (3012544,  'unitless', NULL, 'pH of Venous blood'),
-  (3038999,  'unitless', NULL, 'pH of Venous blood, temp adjusted'),
-  (3030091,  'unitless', NULL, 'pH of Blood, temp adjusted'),
-  (3032186,  'unitless', NULL, 'pH of Venous cord blood, temp adjusted'),
-  (3030109,  'unitless', NULL, 'pH of Arterial cord blood, temp adjusted'),
-  (3018672,  'unitless', NULL, 'pH of Body fluid'),
+  (3022621,  'explicit', 'pH', 'pH of Urine by Test strip'),
+  (3029305,  'explicit', 'pH', 'pH of Urine by Automated test strip'),
+  (3015736,  'explicit', 'pH', 'pH of Urine'),
+  (3015501,  'explicit', 'pH', 'pH of 24 hour Urine'),
+  (3019977,  'explicit', 'pH', 'pH of Arterial blood'),
+  (3029473,  'explicit', 'pH', 'pH of Arterial blood, temp adjusted'),
+  (3012544,  'explicit', 'pH', 'pH of Venous blood'),
+  (3038999,  'explicit', 'pH', 'pH of Venous blood, temp adjusted'),
+  (3030091,  'explicit', 'pH', 'pH of Blood, temp adjusted'),
+  (3032186,  'explicit', 'pH', 'pH of Venous cord blood, temp adjusted'),
+  (3030109,  'explicit', 'pH', 'pH of Arterial cord blood, temp adjusted'),
+  (3018672,  'explicit', 'pH', 'pH of Body fluid'),
   -- specific gravity (3058 labels some as g/mL; SG is dimensionless)
   (3029991,  'unitless', NULL, 'Specific gravity of Urine by Refractometry automated'),
   (3033543,  'unitless', NULL, 'Specific gravity of Urine'),
@@ -112,24 +171,24 @@ SELECT * FROM VALUES
   (3039919,  'unitless', NULL, 'Specific gravity of Urine by Automated test strip'),
   (3019150,  'unitless', NULL, 'Specific gravity of Urine by Refractometry'),
   -- INR
-  (3022217,  'unitless', NULL, 'INR in Platelet poor plasma'),
-  (3051593,  'unitless', NULL, 'INR in Capillary blood'),
-  (3032080,  'unitless', NULL, 'INR in Blood'),
+  (3022217,  'explicit', '{ratio}', 'INR in Platelet poor plasma'),
+  (3051593,  'explicit', '{ratio}', 'INR in Capillary blood'),
+  (3032080,  'explicit', '{ratio}', 'INR in Blood'),
   -- ratios
-  (3018311,  'unitless', NULL, 'BUN/Creatinine ratio'),
-  (3020509,  'unitless', NULL, 'Albumin/Globulin ratio'),
-  (3053209,  'unitless', NULL, 'Kappa/Lambda free light chain ratio'),
-  (40757349, 'unitless', NULL, 'CD4/CD8 ratio'),
-  (3021492,  'unitless', NULL, 'IgG/Albumin ratio'),
-  -- indexes and scores
-  (3032612,  'unitless', NULL, 'Calcium oxalate index, 24h urine'),
-  (3031809,  'unitless', NULL, 'Calcium hydrogen phosphate saturation fraction'),
-  (3000551,  'unitless', NULL, 'T4 free index'),
-  (21492175, 'unitless', NULL, 'AlloMap score'),
+  (3018311,  'explicit', '{ratio}', 'BUN/Creatinine ratio'),
+  (3020509,  'explicit', '{ratio}', 'Albumin/Globulin ratio'),
+  (3053209,  'explicit', '{ratio}', 'Kappa/Lambda free light chain ratio'),
+  (40757349, 'explicit', '{ratio}', 'CD4/CD8 ratio'),
+  (3021492,  'explicit', '{ratio}', 'IgG/Albumin ratio'),
+  (3011163,  'explicit', '{ratio}', 'Total/HDL cholesterol ratio, including the records corrected from 3023884 (cell 1d); partner 3058 has one labeled mg/dL record that would otherwise be copied'),
+  -- indexes, fractions, scores
+  (3032612,  'explicit', '{index}',    'Calcium oxalate index, 24h urine'),
+  (3031809,  'explicit', '{fraction}', 'Calcium hydrogen phosphate saturation fraction'),
+  (3000551,  'explicit', '{index}',    'T4 free index'),
+  (21492175, 'explicit', '[score]',    'AlloMap score'),
   -- suspect concept mappings
   (3037816,  'suspect_concept', NULL, 'CD4+CD8+ cells/cells: range 0.8-4.2 and values look like a CD4/CD8 ratio'),
   (3046867,  'suspect_concept', NULL, 'Alpha 1 antitrypsin phenotype [Interpretation]: holds the same value and range as an IgA result'),
-  (3023884,  'suspect_concept', NULL, 'HDL/Total cholesterol ratio: values 2.6-9.2 are Total/HDL (HDL/Total cannot exceed 1)'),
   (3016991,  'suspect_concept', NULL, 'Thyroxine (T4) total: ranges 0.82-1.77 and values ~1 are free T4 in ng/dL'),
   -- explicit units
   (3045462,  'explicit', 'mg/mg{creat}', 'Protein/Creatinine [Ratio]: range_high 0.2 implies mg/mg'),
@@ -141,14 +200,14 @@ AS t(measurement_concept_id, rule, unit_code, note);
 
 -- 3a. Numeric source records
 CREATE OR REPLACE TEMP VIEW src AS
-SELECT data_partner_id, measurement_concept_id, range_low, range_high,
+SELECT data_partner_id, harmonized_measurement_concept_id, range_low, range_high,
        unit_concept_id, unit_source_value, value_as_number
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
 WHERE value_as_number IS NOT NULL;
 
 -- 3b. Unlabeled groups: no unit at all, but a reference range
 CREATE OR REPLACE TEMP VIEW unl AS
-SELECT data_partner_id, measurement_concept_id, range_low, range_high,
+SELECT data_partner_id, harmonized_measurement_concept_id, range_low, range_high,
        COUNT(*) AS n,
        percentile_approx(value_as_number, 0.5) AS med
 FROM src
@@ -164,29 +223,30 @@ CREATE OR REPLACE TEMP VIEW lab AS
 SELECT s.*
 FROM src s
 WHERE COALESCE(s.unit_concept_id, 0) <> 0
-  AND s.measurement_concept_id IN (
-        SELECT measurement_concept_id FROM unl WHERE measurement_concept_id <> 0);
+  AND s.harmonized_measurement_concept_id IN (
+        SELECT harmonized_measurement_concept_id FROM unl
+        WHERE harmonized_measurement_concept_id <> 0);
 
 -- 3d. Candidate units at three levels of evidence:
 --     1 = same partner, same concept, same reference range
 --     2 = same partner, same concept
 --     3 = same concept, any partner
 CREATE OR REPLACE TEMP VIEW cand AS
-SELECT 1 AS lvl, data_partner_id, measurement_concept_id, range_low, range_high,
+SELECT 1 AS lvl, data_partner_id, harmonized_measurement_concept_id, range_low, range_high,
        unit_concept_id, COUNT(*) AS n_lab,
        percentile_approx(value_as_number, 0.5) AS med_lab
 FROM lab
-GROUP BY data_partner_id, measurement_concept_id, range_low, range_high, unit_concept_id
+GROUP BY data_partner_id, harmonized_measurement_concept_id, range_low, range_high, unit_concept_id
 UNION ALL
-SELECT 2, data_partner_id, measurement_concept_id, NULL, NULL,
+SELECT 2, data_partner_id, harmonized_measurement_concept_id, NULL, NULL,
        unit_concept_id, COUNT(*), percentile_approx(value_as_number, 0.5)
 FROM lab
-GROUP BY data_partner_id, measurement_concept_id, unit_concept_id
+GROUP BY data_partner_id, harmonized_measurement_concept_id, unit_concept_id
 UNION ALL
-SELECT 3, NULL, measurement_concept_id, NULL, NULL,
+SELECT 3, NULL, harmonized_measurement_concept_id, NULL, NULL,
        unit_concept_id, COUNT(*), percentile_approx(value_as_number, 0.5)
 FROM lab
-GROUP BY measurement_concept_id, unit_concept_id;
+GROUP BY harmonized_measurement_concept_id, unit_concept_id;
 
 -- 3e. Pick the best candidate per unlabeled group: strongest evidence level
 --     first, then most records. An exact reference-range match (level 1) is
@@ -196,14 +256,14 @@ GROUP BY measurement_concept_id, unit_concept_id;
 --     (Applying it at level 1 too rejected small groups of abnormal results,
 --     e.g. a BUN of 44 against a typical 17.)
 CREATE OR REPLACE TEMP VIEW pick AS
-SELECT u.data_partner_id, u.measurement_concept_id, u.range_low, u.range_high,
+SELECT u.data_partner_id, u.harmonized_measurement_concept_id, u.range_low, u.range_high,
        c.lvl, c.unit_concept_id, c.n_lab, c.med_lab,
        ROW_NUMBER() OVER (
-         PARTITION BY u.data_partner_id, u.measurement_concept_id, u.range_low, u.range_high
+         PARTITION BY u.data_partner_id, u.harmonized_measurement_concept_id, u.range_low, u.range_high
          ORDER BY c.lvl, c.n_lab DESC, c.unit_concept_id) AS rk
 FROM unl u
 JOIN cand c
-  ON  c.measurement_concept_id = u.measurement_concept_id
+  ON  c.harmonized_measurement_concept_id = u.harmonized_measurement_concept_id
   AND (c.lvl = 3 OR c.data_partner_id = u.data_partner_id)
   AND (c.lvl > 1 OR (c.range_high = u.range_high AND c.range_low <=> u.range_low))
 WHERE c.lvl = 1
@@ -213,21 +273,21 @@ WHERE c.lvl = 1
 -- 4. Decisions table: one row per unlabeled group
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions AS
 SELECT
-  u.data_partner_id, u.measurement_concept_id, cn.concept_name,
+  u.data_partner_id, u.harmonized_measurement_concept_id, cn.concept_name,
   u.range_low, u.range_high, u.n, u.med,
   CASE
-    WHEN r.rule = 'unitless'           THEN 'unitless'
-    WHEN r.rule = 'suspect_concept'    THEN 'suspect_concept'
-    WHEN u.measurement_concept_id = 0  THEN 'no_concept'
-    WHEN r.rule = 'explicit'           THEN 'explicit'
-    WHEN p.lvl = 1                     THEN 'range_match'
-    WHEN p.lvl = 2                     THEN 'partner_unit'
-    WHEN p.lvl = 3                     THEN 'dataset_unit'
+    WHEN r.rule = 'unitless'                     THEN 'unitless'
+    WHEN r.rule = 'suspect_concept'              THEN 'suspect_concept'
+    WHEN u.harmonized_measurement_concept_id = 0 THEN 'no_concept'
+    WHEN r.rule = 'explicit'                     THEN 'explicit'
+    WHEN p.lvl = 1                               THEN 'range_match'
+    WHEN p.lvl = 2                               THEN 'partner_unit'
+    WHEN p.lvl = 3                               THEN 'dataset_unit'
     ELSE 'needs_review'
   END AS unit_inference_method,
   CASE
     WHEN r.rule = 'explicit' THEN ru.concept_id
-    WHEN r.rule IS NULL AND u.measurement_concept_id <> 0 THEN p.unit_concept_id
+    WHEN r.rule IS NULL AND u.harmonized_measurement_concept_id <> 0 THEN p.unit_concept_id
   END AS inferred_unit_concept_id,
   p.n_lab  AS evidence_n,
   p.med_lab AS evidence_median,
@@ -236,17 +296,17 @@ FROM unl u
 LEFT JOIN pick p
   ON  p.rk = 1
   AND p.data_partner_id = u.data_partner_id
-  AND p.measurement_concept_id = u.measurement_concept_id
+  AND p.harmonized_measurement_concept_id = u.harmonized_measurement_concept_id
   AND p.range_high = u.range_high
   AND p.range_low <=> u.range_low
 LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_concept_rules r
-  ON r.measurement_concept_id = u.measurement_concept_id
+  ON r.measurement_concept_id = u.harmonized_measurement_concept_id
 LEFT JOIN omop_vocab.concept ru
   ON  ru.vocabulary_id = 'UCUM'
   AND ru.concept_code = r.unit_code
   AND ru.invalid_reason IS NULL
 LEFT JOIN omop_vocab.concept cn
-  ON cn.concept_id = u.measurement_concept_id;
+  ON cn.concept_id = u.harmonized_measurement_concept_id;
 
 -- 4b. Check: explicit rules whose UCUM code didn't resolve to a concept.
 --     Should return no rows; fix the code in cell 2 if it does.
@@ -273,7 +333,7 @@ ORDER BY n_records DESC;
 -- ===== A4. Review: every group =====
 
 -- 5b. Review: every group, with the chosen unit spelled out
-SELECT d.unit_inference_method, d.data_partner_id, d.measurement_concept_id, d.concept_name,
+SELECT d.unit_inference_method, d.data_partner_id, d.harmonized_measurement_concept_id, d.concept_name,
        d.range_low, d.range_high, d.n, d.med,
        uc.concept_code AS inferred_unit, d.evidence_n, d.evidence_median, d.note
 FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions d
@@ -294,7 +354,7 @@ USING (
   LEFT JOIN omop_vocab.concept uc ON uc.concept_id = d.inferred_unit_concept_id
 ) d
 ON  t.data_partner_id = d.data_partner_id
-AND t.measurement_concept_id = d.measurement_concept_id
+AND t.harmonized_measurement_concept_id = d.harmonized_measurement_concept_id
 AND t.range_high = d.range_high
 AND t.range_low <=> d.range_low
 AND t.value_as_number IS NOT NULL
@@ -314,27 +374,28 @@ WHEN MATCHED THEN UPDATE SET
 
 -- ===== A6. No-concept records: rules. Last result: check, should be empty =====
 
--- 7. Records with no concept (measurement_concept_id = 0): decide the unit
---    from the source test name. Patterns are matched against
+-- 7. Records with no concept (harmonized_measurement_concept_id = 0): decide
+--    the unit from the source test name. Patterns are matched against
 --    lower(measurement_source_value); the lowest priority number wins, so
 --    ratios come before their components ("albumin/globulin" before "albumin").
 --    Run this AFTER cell 6: it overwrites the 'no_concept' rows cell 6 wrote.
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_source_name_rules AS
 SELECT * FROM VALUES
-  -- unitless
-  ( 1, '%albumin/globulin%',     'unitless', CAST(NULL AS STRING)),
-  ( 3, '%bun/creatinine%',       'unitless', NULL),
-  ( 4, '%igg/albumin%',          'unitless', NULL),
-  ( 5, '%immunoglobulin g index%','unitless', NULL),
-  ( 6, '%kappa/lambda%',         'unitless', NULL),
-  ( 7, '%cd4/cd8%',              'unitless', NULL),
+  -- dimensionless units
+  ( 1, '%albumin/globulin%',     'source_name', '{ratio}'),
+  ( 3, '%bun/creatinine%',       'source_name', '{ratio}'),
+  ( 4, '%igg/albumin%',          'source_name', '{ratio}'),
+  ( 5, '%immunoglobulin g index%','source_name', '{index}'),
+  ( 6, '%kappa/lambda%',         'source_name', '{ratio}'),
+  ( 7, '%cd4/cd8%',              'source_name', '{ratio}'),
+  ( 9, 'ph,%',                   'source_name', 'pH'),
+  (10, '%inr%',                  'source_name', '{ratio}'),
+  (11, '%aspergillus gm%',       'source_name', '{index}'),
+  (12, '%teratozoospermia index%','source_name', '{index}'),
+  (13, '%jcv index%',            'source_name', '{index}'),
+  (14, '%nash%',                 'source_name', '[score]'),
+  -- unitless: no UCUM unit
   ( 8, '%specific gravity%',     'unitless', NULL),
-  ( 9, 'ph,%',                   'unitless', NULL),
-  (10, '%inr%',                  'unitless', NULL),
-  (11, '%aspergillus gm%',       'unitless', NULL),
-  (12, '%teratozoospermia index%','unitless', NULL),
-  (13, '%jcv index%',            'unitless', NULL),
-  (14, '%nash%',                 'unitless', NULL),
   -- units
   ( 2, '%albumin/creatinine%',   'source_name', 'mg/g{creat}'),
   (15, '%non-hdl%',              'source_name', 'mg/dL'),
@@ -402,7 +463,7 @@ WITH g AS (
          COUNT(*) AS n,
          percentile_approx(value_as_number, 0.5) AS med
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
-  WHERE measurement_concept_id = 0
+  WHERE harmonized_measurement_concept_id = 0
     AND measurement_source_value IS NOT NULL
     AND value_as_number IS NOT NULL
     AND range_high IS NOT NULL
@@ -443,7 +504,7 @@ ORDER BY unit_inference_method, n DESC;
 MERGE INTO hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
 USING hive_metastore.ehr_union_clean_metrics.unit_inference_source_name_decisions d
 ON  t.data_partner_id = d.data_partner_id
-AND t.measurement_concept_id = 0
+AND t.harmonized_measurement_concept_id = 0
 AND t.measurement_source_value = d.measurement_source_value
 AND t.range_high = d.range_high
 AND t.range_low <=> d.range_low

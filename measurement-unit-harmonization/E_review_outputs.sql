@@ -5,9 +5,31 @@
 -- and paste back every cell's result. Each cell repeats a check or review
 -- query from A-D (named in its comment, which also says what to expect);
 -- the queries stay in A-D too, so a change there has to be copied here.
--- Cells E1, E2 and E3 are the only queries that aren't in A-D.
+-- Cells E1-E4 are the only queries that aren't in A-D.
 --
--- Checks (should be empty): 4b, 7b, 10b, 14a, 14d, 17e, E2, E3.
+-- Checks (should be empty): 1e, 4b, 7b, 10b, 14a, 14d, 17e, E2, E3.
+--
+-- Counts: the expected counts are from the run before the concept
+-- correction (Part A, 1d) and the switch from unitless to UCUM units
+-- (pH, {ratio}, {index}, [score], ...). Where a comment says "changes",
+-- the next run sets the new count; the direction of the change is given.
+-- The source table also changed between runs (about 4,000 fewer numeric
+-- records), so even unaffected counts drift slightly.
+
+
+-- COMMAND ----------
+
+-- 1e (Part A, cell 1d). Check: records moved to another concept by
+--     measurement_concept_corrections whose value doesn't fit it
+--     (total/HDL at or below 1).
+--     Expect: no rows. (F4: the 3023884 records run 1.5-34.3.)
+SELECT t.data_partner_id, t.measurement_concept_id, t.harmonized_measurement_concept_id,
+       COUNT(*) AS n, min(t.value_as_number) AS min_value, max(t.value_as_number) AS max_value
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+JOIN hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections c
+  ON c.measurement_concept_id = t.measurement_concept_id
+WHERE t.value_as_number <= c.implausible_max
+GROUP BY 1, 2, 3;
 
 
 -- COMMAND ----------
@@ -26,8 +48,12 @@ WHERE r.rule = 'explicit' AND ru.concept_id IS NULL;
 -- COMMAND ----------
 
 -- 5a (Part A, cell A3). Review: Part A concept-level decisions by method.
---     Expect: n_records totals 205,838; suspect_concept 88. no_concept rows
---     are the concept-0 groups that 8b decides.
+--     Expect: n_records total about 205,200 (unchanged apart from source
+--     drift). Changes: unitless drops to specific gravity only, explicit
+--     rises by the same (pH, INR, ratios, indexes now have units);
+--     suspect_concept 82 (was 88: the 6 records of 3023884 are now
+--     3011163, explicit {ratio}). no_concept rows are the concept-0 groups
+--     that 8b decides.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions
 GROUP BY 1
@@ -49,8 +75,10 @@ WHERE r.unit_code IS NOT NULL AND ru.concept_id IS NULL;
 -- COMMAND ----------
 
 -- 8b (Part A, cell A7). Review: no-concept decisions, every group.
---     Expect: almost all source_name or unitless; Part A's needs_review and
---     no_concept together come to 6 records (5a plus this).
+--     Expect: almost all source_name; unitless only for specific gravity
+--     (ratios, pH, INR, indexes and NASH scores are now source_name with a
+--     UCUM unit). Part A's needs_review and no_concept together come to 6
+--     records (5a plus this).
 SELECT * FROM hive_metastore.ehr_union_clean_metrics.unit_inference_source_name_decisions
 ORDER BY unit_inference_method, n DESC;
 
@@ -70,8 +98,10 @@ WHERE m.rule = 'unit' AND ru.concept_id IS NULL;
 -- COMMAND ----------
 
 -- 11b (Part B, cell B2). Review: unit-string decisions by method.
---      Expect: 223 strings, 55,429 records; unmapped_string 58 strings
---      (5,988 records), not_a_unit 18 (275).
+--      Expect: 223 strings, about 55,300 records; unmapped_string 58
+--      strings (about 5,950 records), not_a_unit 18 (275). Changes:
+--      unitless 1 string (ACTIVITY COEFF; was 9), and those 8 strings move
+--      to mapped_string ({ratio}, {index}, {ISR}, [OD'U]).
 SELECT unit_inference_method, COUNT(*) AS n_strings, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_string_decisions
 GROUP BY 1 ORDER BY n_records DESC;
@@ -107,7 +137,7 @@ WITH v AS (
 SELECT * FROM (
   SELECT CASE WHEN v.unit_code IS NOT NULL AND v.ucum_concept_id IS NULL THEN 'not a UCUM code'
               WHEN (v.method = 'value_split') <> (v.unit_code IS NOT NULL)
-                OR v.method NOT IN ('value_split', 'unitless', 'reciprocal', 'needs_review', 'suspect_concept')
+                OR v.method NOT IN ('value_split', 'unitless', 'needs_review', 'suspect_concept')
                                                                          THEN 'method and unit_code disagree'
               WHEN v.rn = 1 AND v.value_min IS NOT NULL                  THEN 'first band has a lower bound'
               WHEN v.rn = v.n_bands AND v.value_max IS NOT NULL          THEN 'last band has an upper bound'
@@ -122,8 +152,11 @@ SELECT * FROM (
 
 -- 15a (Part C). Review: Part C decisions by method, per (partner, test),
 --      before 16 splits value_split groups into bands.
---      Expect: explicit 510,927; needs_review 661; value_split 7,047;
---      total 1,066,417. E1 has the per-record counts after the split.
+--      Expect: total about 1,066,000. Changes: unitless drops to counts,
+--      Ct values and RAST class, explicit rises by the same (scores, pain
+--      scales, pH, ratios now have units); value_split about 565 (was
+--      7,022: the HDL/total test's 6,457 are gone from it). E1 has the
+--      per-record counts after the split.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions
 GROUP BY 1
@@ -148,8 +181,9 @@ ORDER BY n DESC;
 -- COMMAND ----------
 
 -- 15d (Part C). Review: value_split records by band, as 16 assigns them.
---      Expect: seven rows, no NULL band. HDL/total reciprocal 6,482 records;
---      RV/TLC under 8 suspect_concept 225.
+--      Expect: six rows, no NULL band: body temperature Cel and [degF],
+--      protein/creatinine mg/mg and mg/g, RV/TLC % and under 8
+--      suspect_concept 225. No HDL/total row (it's corrected in Part A).
 SELECT r.data_partner_id, d.test_name, v.value_min, v.value_max, v.unit_code, v.method,
        COUNT(*) AS n, min(r.value_as_number) AS min_value,
        percentile_approx(r.value_as_number, 0.5) AS median, max(r.value_as_number) AS max_value
@@ -211,7 +245,10 @@ ORDER BY r.test_pattern, n DESC;
 
 -- 19a (Part D). Review: conversion decisions by method.
 --      Expect: identity and same_base hold nearly all records;
---      no_conversion 3,185 plus blocked 4 = 20a's "has unit, no conversion".
+--      no_conversion plus blocked = 20a's "has unit, no conversion".
+--      Changes: identity rises by most of the 509,196 records that were
+--      unitless and now have pH, {ratio}, [score] and so on, plus the
+--      6,457 corrected total/HDL records; no_conversion was 3,184.
 SELECT conversion_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions
 GROUP BY 1 ORDER BY n_records DESC;
@@ -222,6 +259,9 @@ GROUP BY 1 ORDER BY n_records DESC;
 --      canonical unit.
 --      Expect: log viral loads, Lp(a), arbitrary antibody units, and tests
 --      holding two different quantities. Nothing a factor would fix.
+--      Changes: INR's canonical unit should become {ratio} now that its
+--      Part A records have it, so the ~1,440 PT values in s under INR
+--      show here instead of the one {ratio} record.
 SELECT test_name, data_partner_id, unit_code, n, median_raw, canonical_unit_code, canonical_median, analyte
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_medians
 WHERE conversion_method = 'no_conversion'
@@ -241,8 +281,11 @@ ORDER BY greatest(abs(ratio), abs(try_divide(1, ratio))) DESC NULLS FIRST;
 -- COMMAND ----------
 
 -- 20a (Part D). Review: numeric records by harmonization status.
---      Expect: in canonical unit 6,529,079; unitless 509,251; has unit, no
---      conversion 3,189; no unit 11,037 (E1's no-unit methods).
+--      Expect: no unit about 11,000 (E1's no-unit methods); has unit, no
+--      conversion about 3,200 plus INR's seconds records (19d).
+--      Changes: unitless drops from 509,196 to specific gravity, counts,
+--      Ct values, activity coefficients and RAST class; in canonical unit
+--      (was 6,525,084) rises by the same.
 SELECT CASE WHEN canonical_unit_concept_id IS NOT NULL  THEN 'in canonical unit'
             WHEN harmonized_value_as_number IS NOT NULL THEN 'unitless'
             WHEN COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id) IS NOT NULL
@@ -259,17 +302,20 @@ GROUP BY 1 ORDER BY n DESC;
 -- E1 (new, not in A-D). Review: numeric records by part and method, read
 --    from the target table after every apply. Parts are told apart by raw
 --    columns, as each part picks its records.
---    Expect:
---      has unit concept: copied_from_unit_concept_id only, 5,724,872
---      A: total 205,838; the unit methods (dataset_unit, partner_unit,
---         range_match, explicit, source_name) 172,788; unitless 32,956;
---         suspect_concept 88; needs_review plus no_concept 6
---      B: total 55,429; mapped_string 49,073; unmapped_string 5,988;
---         not_a_unit 275; unitless 77; reused_mapping 16
---      C: total 1,066,417; explicit 510,927; unitless plus reciprocal
---         476,218 (reciprocal 6,482); partner_unit plus dataset_unit 73,887;
---         source_name 365; not_a_quantity 3,794; suspect_concept 225;
---         needs_review 661; value_split 340
+--    Expect (last run's counts; "changes" as in the cells above):
+--      has unit concept: copied_from_unit_concept_id only, 5,721,737
+--      A: total 205,212; unit methods 172,191 rising by most of unitless
+--         (32,927, now specific gravity only); suspect_concept 82 (was 88);
+--         needs_review plus no_concept 6
+--      B: total 55,267; mapped_string 48,943 plus most of the 77 that
+--         were unitless, which is now ACTIVITY COEFF only; unmapped_string 5,956;
+--         not_a_unit 275; reused_mapping 16
+--      C: total 1,066,251; the 6,457 HDL/total records are now explicit
+--         {ratio} under 3011163; unitless (was 469,735) drops to counts,
+--         Ct values and RAST class, explicit (was 510,860) rises by the rest;
+--         partner_unit plus dataset_unit 73,820; source_name 365;
+--         not_a_quantity 3,790; suspect_concept 225; needs_review 659;
+--         value_split 340
 SELECT CASE WHEN COALESCE(unit_concept_id, 0) <> 0 THEN 'has unit concept'
             WHEN unit_source_value IS NOT NULL      THEN 'B'
             WHEN range_high IS NOT NULL             THEN 'A'
@@ -314,6 +360,27 @@ HAVING unit_inference_method IS NULL OR unit_conversion_method IS NULL
 
 -- COMMAND ----------
 
+-- E4 (new, not in A-D). Review: records moved to another concept by
+--    measurement_concept_corrections (Part A, 1d), next to the records
+--    that arrived under the target concept, after D.
+--    Expect: rows with measurement_concept_id 3023884 are partner 3058,
+--    about 6,464 records (F4a), all with canonical unit {ratio} (the one
+--    arrived as mg/dL relabeled in 17d), harmonized median about 3.5;
+--    rows with 3011163 are partner 2084's own, median about 3.2.
+SELECT t.measurement_concept_id, t.harmonized_measurement_concept_id, t.data_partner_id,
+       t.unit_inference_method, t.inferred_unit_source_value, t.canonical_unit_value,
+       t.unit_conversion_method, COUNT(*) AS n,
+       percentile_approx(t.harmonized_value_as_number, array(0.05, 0.5, 0.95)) AS harmonized_pct
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+WHERE t.value_as_number IS NOT NULL
+  AND t.harmonized_measurement_concept_id IN (
+        SELECT harmonized_measurement_concept_id
+        FROM hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections)
+GROUP BY ALL
+ORDER BY 1, 2, 3, n DESC;
+
+-- COMMAND ----------
+
 -- 20b (Part D). Review: stored body weights by test, partner and unit.
 --      Expect: kg_pct medians all near 80-90. Partner 2084 [lb_us]: raw
 --      median about 2,847, kg median about 80.7 (was 1,291 before the
@@ -324,7 +391,7 @@ SELECT COALESCE(mc.concept_name, k.measurement_source_value) AS test_name,
        percentile_approx(k.value_as_number, array(0.05, 0.5, 0.95)) AS raw_pct,
        percentile_approx(k.harmonized_value_as_number, array(0.05, 0.5, 0.95)) AS kg_pct
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
-LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.measurement_concept_id, 0)
+LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.harmonized_measurement_concept_id, 0)
 LEFT JOIN omop_vocab.concept u  ON u.concept_id = k.effective_unit_concept_id
 WHERE COALESCE(mc.concept_name, k.measurement_source_value) RLIKE '(?i)^body weight'
 GROUP BY 1, 2, 3, 4, 5
@@ -340,7 +407,7 @@ WITH w AS (
   SELECT k.person_id, k.data_partner_id, u.concept_code AS unit,
          percentile_approx(k.harmonized_value_as_number, 0.5) AS kg
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
-  JOIN omop_vocab.concept mc ON mc.concept_id = k.measurement_concept_id
+  JOIN omop_vocab.concept mc ON mc.concept_id = k.harmonized_measurement_concept_id
   JOIN omop_vocab.concept u  ON u.concept_id = k.effective_unit_concept_id
   WHERE mc.concept_name = 'Body weight'
     AND u.concept_code IN ('kg', '[lb_us]')
