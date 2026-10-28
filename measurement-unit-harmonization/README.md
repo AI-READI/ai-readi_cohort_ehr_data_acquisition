@@ -151,7 +151,7 @@ siemens, CEA in "mg/dL" that is ng/mL).
 Needs read access to `ehr_union_clean.measurement` and `omop_vocab.concept`,
 and write access to `hive_metastore.ehr_union_clean_metrics`.
 
-1. Import the five `.sql` files below (Workspace > Import > File). They are
+1. Import the `.sql` files below (Workspace > Import > File). They are
    in Databricks source format, so each splits into its cells on import.
 2. If `measurement_unit_harmonized` already exists from an earlier version,
    drop it first (the commented-out `DROP TABLE` line in A's cell 1). A's
@@ -164,13 +164,18 @@ and write access to `hive_metastore.ehr_union_clean_metrics`.
 4. Run E. Every cell marked "Check" should return no rows, and every review
    should match the expectation in its comment.
 
-| | Databricks | Source |
-|---|---|---|
-| A. No unit, reference range | [notebook](https://adb-7791682337464088.8.azuredatabricks.net/editor/notebooks/2497135705072511?o=7791682337464088) | [A_unit_inference_range_groups.sql](A_unit_inference_range_groups.sql) |
-| B. Unit text, no unit concept | [notebook](https://adb-7791682337464088.8.azuredatabricks.net/editor/notebooks/2497135705072510?o=7791682337464088) | [B_unit_inference_with_source_value_but_no_unit_concept.sql](B_unit_inference_with_source_value_but_no_unit_concept.sql) |
-| C. No unit, no reference range | [notebook](https://adb-7791682337464088.8.azuredatabricks.net/editor/notebooks/2497135705072512?o=7791682337464088) | [C_unit_inference_no_unit_no_range.sql](C_unit_inference_no_unit_no_range.sql) |
-| D. Conversion to canonical units | [notebook](https://adb-7791682337464088.8.azuredatabricks.net/editor/notebooks/2497135705072513?o=7791682337464088) | [D_unit_conversion.sql](D_unit_conversion.sql) |
-| E. Checks and review of the run | [notebook](https://adb-7791682337464088.8.azuredatabricks.net/editor/notebooks/2497135705072514?o=7791682337464088) | [E_review_outputs.sql](E_review_outputs.sql) |
+The notebooks are in Databricks under
+[/Shared/vital-lab-results-missingunits](https://adb-7791682337464088.8.azuredatabricks.net/editor/folders/workspace?o=7791682337464088),
+imported from these files:
+
+| Notebook | Source |
+|---|---|
+| A. No unit, reference range | [A_unit_inference_range_groups.sql](A_unit_inference_range_groups.sql) |
+| B. Unit text, no unit concept | [B_unit_inference_with_source_value_but_no_unit_concept.sql](B_unit_inference_with_source_value_but_no_unit_concept.sql) |
+| C. No unit, no reference range | [C_unit_inference_no_unit_no_range.sql](C_unit_inference_no_unit_no_range.sql) |
+| D. Conversion to canonical units | [D_unit_conversion.sql](D_unit_conversion.sql) |
+| E. Checks and review of the run | [E_review_outputs.sql](E_review_outputs.sql) |
+| F. Probes for review questions (optional) | [F_probes.sql](F_probes.sql) |
 
 Part A's first cells create the target table if it doesn't exist, fill
 the inferred columns for records that arrived with a unit, and fill
