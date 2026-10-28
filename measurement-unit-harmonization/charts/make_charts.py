@@ -35,9 +35,9 @@ def style(ax):
 def unit_assignment():
     # (label, unit assigned, unitless, no unit); E1 by part
     parts = [
-        ('A  No unit, has a\nreference range', 172_788, 32_956, 94),
-        ('B  Unit text with\nno unit concept', 49_089, 77, 6_263),
-        ('C  No unit, no\nreference range', 585_519, 476_218, 4_680),
+        ('A  No unit, has a\nreference range', 195_464, 9_660, 88),
+        ('B  Unit text with\nno unit concept', 49_035, 1, 6_231),
+        ('C  No unit, no\nreference range', 1_046_793, 14_784, 4_674),
     ]
     fig, ax = plt.subplots(figsize=(8, 3.2))
     left = [0] * len(parts)
@@ -65,10 +65,10 @@ def unit_assignment():
 def conversion():
     # 19a, records by conversion method
     rows = [
-        ('Already in canonical unit', 5_519_682),
-        ('Converted by unit factor', 943_792),
-        ('Converted via molar mass or charge', 65_605),
-        ('No fixed conversion', 3_185),
+        ('Already in canonical unit', 5_998_987),
+        ('Converted by unit factor', 944_004),
+        ('Converted via molar mass or charge', 65_385),
+        ('No fixed conversion', 4_649),
         ('Blocked: label contradicts values', 4),
     ]
     fig, ax = plt.subplots(figsize=(8, 2.8))
@@ -77,7 +77,7 @@ def conversion():
     for y, (_, n) in enumerate(rows):
         ax.text(n + 40_000, y, f'{n:,}', va='center', color=INK2, fontsize=9)
     ax.invert_yaxis()
-    ax.set_xlim(0, 6_400_000)
+    ax.set_xlim(0, 6_900_000)
     style(ax)
     ax.set_title('Records with a unit, by conversion to the canonical unit',
                  loc='left', fontsize=11, fontweight='bold')

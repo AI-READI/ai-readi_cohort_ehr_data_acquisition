@@ -100,7 +100,7 @@ an index. (A code with no factor row would also work: it's its own class
 and converts to itself.)
 
 **Part A.** Numeric records with no unit string and no unit concept, but with a
-reference range: 205,838 records.
+reference range: 205,212 records.
 
 | Method | Meaning |
 |---|---|
@@ -108,12 +108,11 @@ reference range: 205,838 records.
 | explicit | unit set by hand per concept (unit_concept_rules), including pH, INR, ratios, indexes |
 | source_name | concept 0; unit decided from measurement_source_value |
 | unitless | specific gravity |
-| suspect_concept | values don't fit the concept (likely concept-mapping error); 82 records expected (88 before the correction) |
+| suspect_concept | values don't fit the concept (likely concept-mapping error); 82 records |
 | needs_review / no_concept | undetermined; 6 records |
 
-Result in the run before the correction and the UCUM units: 172,788 got a
-unit, 32,956 unitless, 94 flagged. Most of the unitless move to explicit or
-source_name in the next run.
+Result (last run): 195,464 got a unit, 9,660 unitless (specific
+gravity), 88 without a unit (82 suspect_concept, 6 undetermined).
 
 **Part B.** Numeric records with a unit string but no unit concept: about 55,000
 records, 223 strings.
@@ -126,12 +125,12 @@ records, 223 strings.
 | not_a_unit | junk in the unit field ("Possible", "**Please", "PharmD", "Urine") |
 | unmapped_string | left on purpose (58 strings: log viral loads, FLU, CU, per-ejaculate counts) |
 
-Result (run before the UCUM units): 55,429 records; 49,089 got a unit
-(mapped_string, reused_mapping), 77 unitless, 6,263 without a unit (5,988
-unmapped_string, 275 not_a_unit). Most of the 77 become mapped_string.
+Result (last run): 55,267 records; 49,035 got a unit (mapped_string,
+reused_mapping), 1 unitless, 6,231 without a unit (5,956 unmapped_string,
+275 not_a_unit).
 
 **Part C.** Numeric records with no unit string, no unit concept and no
-reference range: 1,066,417 records, almost all from one partner, mostly
+reference range: 1,066,251 records, almost all from one partner, mostly
 flowsheet and exam data. About 100 tests cover 97% of them, and most of those
 tests have no labeled records to copy a unit from, so name rules
 (`unit_no_range_rules`, regexes on the test name) do most of the work.
@@ -160,12 +159,10 @@ use other numbers.
 Unitless records no longer count as evidence (cell 13a): what's still
 unitless gets it from a rule.
 
-Result in the run before the correction and the UCUM units: 510,927
-explicit, 476,218 unitless (6,482 of them the HDL/total records, then
-inverted), 73,887 copied, 365 source_name, 3,794 not_a_quantity, 225
-suspect_concept (TLC under RV/TLC), 661 needs_review, 340 value_split. In
-the next run most unitless become explicit, and the HDL/total records are
-explicit {ratio} under 3011163.
+Result (last run): 971,623 explicit (6,457 of them the HDL/total records,
+{ratio} under 3011163), 14,784 unitless, 74,361 copied, 469 source_name,
+3,790 not_a_quantity, 225 suspect_concept (TLC under RV/TLC), 659
+needs_review, 340 value_split.
 
 **Part D.** Conversion to a canonical unit per test. A test is the measurement
 concept, or the measurement_source_value for concept 0.
@@ -215,28 +212,21 @@ harmonized value) on the records it writes, so a rerun of any part needs a Part 
 touches only records with a unit, so without that clearing a record whose
 unit was taken away keeps a stale canonical unit (E2 checks for this).
 
-Numeric records after Parts A-D (cell 20a, last run, before the concept
-correction and the UCUM units): 6,525,084 in canonical unit, 509,196
-unitless, 3,188 with a unit but no conversion, 10,999 with no unit. Most
-unitless records move to "in canonical unit" in the next run.
+Numeric records after Parts A-D (cell 20a, last run): 7,008,376 in
+canonical unit, 24,445 unitless, 4,653 with a unit but no conversion,
+10,993 with no unit.
 
 ## Next step
 
-The last full run (Siggie's E_review_outputs.ipynb, before the concept
-correction and the UCUM units) included the setup cells, the clearing of
-Part D's columns, partner-scoped relabels, 19f and E3: every check was
-empty and every review matched its comment. Its counts are about 4,000
-numeric records lower than the README's (7,048,467 vs 7,052,556), probably
-because the source table changed.
-
-Next: reimport A-E, then run A-D in full and E. E's comments
-say which counts change and in which direction. Then update the README
-counts (the ones marked †), the counts in this file, and the charts
-([charts/make_charts.py](charts/make_charts.py) has the counts typed in).
+The last full run (Siggie's E_review_outputs.ipynb, 2026-10-28, with the
+concept correction and the UCUM units) had every check empty and every
+review matching its comment. The README, this file and the charts
+([charts/make_charts.py](charts/make_charts.py) has the counts typed in)
+carry its counts. After a rerun, update all three from E.
 
 ## Not done
 
-1. **Part C leftovers** still needs_review (661 records): log viral
+1. **Part C leftovers** still needs_review (659 records): log viral
    loads (left unmapped, as in Part B), Treadmill MPH (28; OMOP UCUM has no
    mile per hour), and tests with no rule yet: Creatinine/Protein [Mass
    Ratio] in Urine (94, median 235, looks like protein/creatinine mg/g),
@@ -248,10 +238,10 @@ counts (the ones marked †), the counts in this file, and the charts
      ratios, "total T4" that is free T4, an
      "A1AT phenotype" holding an IgA value
    - Beta-2 glycoprotein IgM (4 records)
-   - INR concept: about 1,440 records in seconds with median 12, so PT values
-     stored under INR. Now that INR's Part A records are {ratio}, its
-     canonical unit should become {ratio} and these show in 19d as
-     no_conversion.
+   - INR concept: 1,440 records in seconds with median 12, so PT values
+     stored under INR. INR's canonical unit is {ratio}, so they show in 19d
+     as no_conversion: `s` and `S` rows, 720 each with the same median,
+     which look like duplicates.
    - Reticulocytes [#/volume] by automated count: 312 records in 10\*6/mm3
      with median 4.25, so RBC counts, not reticulocytes (about 0.06)
    - Expiratory minute volume: `L` and `l` rows, 869 each with the same
@@ -260,8 +250,7 @@ counts (the ones marked †), the counts in this file, and the charts
 3. **Write-up for the boss**: drafted as
    [README.md](README.md), charts from
    [charts/make_charts.py](charts/make_charts.py) (counts copied from the E
-   run; to be regenerated after the next run, since most "Unitless" records
-   become "Unit assigned"). The scope section ("Why every test", now in
+   run). The scope section ("Why every test", now in
    exploration_queries.md) rests on this evidence about the original
    diabetes test list ([exploration_queries.md](exploration_queries.md),
    "Target variables"), which nobody has a record of; it's reconstructed from

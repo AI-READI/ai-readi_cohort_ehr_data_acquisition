@@ -1,15 +1,15 @@
 # Unit harmonization of AI-READI EHR measurements
 
-There are 7,052,556 numeric measurement records. Three things were done to them:
+There are 7,048,467 numeric measurement records. Three things were done to them:
 
-1. **Missing units recovered.** 1,327,684 records (18.8%) had no unit.
-   1,316,647 of those (99.2%) now have one:
+1. **Missing units recovered.** 1,326,730 records (18.8%) had no unit.
+   1,291,292 of those (97.3%) now have one:
 
-   | What the 1,327,684 records with no unit have now | Records | Share |
+   | What the 1,326,730 records with no unit have now | Records | Share |
    |---|---:|---:|
-   | A unit, inferred from other records of the same test | 807,396 † | 60.8% |
-   | Marked unitless: no UCUM unit exists (specific gravity, counts, Ct values) | 509,251 † | 38.4% |
-   | Still no unit | 11,037 | 0.8% |
+   | A unit, inferred from other records of the same test or from rules | 1,291,292 | 97.3% |
+   | Marked unitless: no UCUM unit exists (specific gravity, counts, Ct values) | 24,445 | 1.8% |
+   | Still no unit | 10,993 | 0.8% |
 
 2. **Values converted to one unit per test.** Every record with a unit,
    whether it came with the record or was inferred, was converted to its
@@ -20,24 +20,17 @@ There are 7,052,556 numeric measurement records. Three things were done to them:
    treated as "Cholesterol.total/Cholesterol in HDL" (3011163). See
    [Records under the wrong concept](#records-under-the-wrong-concept).
 
-† These counts are from the run before the concept correction and before
-ratios, pH, indexes and scores got their UCUM units ({ratio}, pH, {index},
-[score]); they were all "unitless" then. Most of the unitless records move
-to "a unit" in the next run, and the counts here will be updated from it.
-The source table has also changed since (about 4,000 fewer numeric
-records).
-
 The results are in
 `hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized`, a full
 copy of `ehr_union_clean.measurement` with added columns; the source table is
 unchanged.
 
-| Where all 7,052,556 numeric records ended up | Records | Share |
+| Where all 7,048,467 numeric records ended up | Records | Share |
 |---|---:|---:|
-| In the test's canonical unit | 6,529,079 † | 92.6% |
-| Unitless (specific gravity, counts, Ct values) | 509,251 † | 7.2% |
-| Unit, but no conversion to the canonical unit | 3,189 | 0.05% |
-| No unit | 11,037 | 0.16% |
+| In the test's canonical unit | 7,008,376 | 99.4% |
+| Unitless (specific gravity, counts, Ct values) | 24,445 | 0.35% |
+| Unit, but no conversion to the canonical unit | 4,653 | 0.07% |
+| No unit | 10,993 | 0.16% |
 
 ## How each record's unit was decided
 
@@ -46,27 +39,27 @@ decided. Part is the group a record fell into (below).
 
 | Outcome | `unit_inference_method` | Part | How | Records |
 |---|---|---|---|---:|
-| Unit | copied_from_unit_concept_id | | Arrived with a unit concept; copied into the inferred columns | 5,724,872 |
-| Unit | explicit | C | Rule on the test name (end-tidal CO2 in mm[Hg], tidal volume in mL, pain and other scores in [score], pH) | 510,927 † |
-| Unit | dataset_unit | A | Copied from labeled records of the same test, any partner | 157,843 |
-| Unit | partner_unit, dataset_unit | C | Copied from labeled records of the same test, same partner first; medians must agree within a factor of 2 | 73,887 |
-| Unit | range_match | A | Copied from labeled records of the same test, same partner and same reference range | 14,108 |
-| Unit | explicit | A | Set by hand per test (including pH, INR and ratios in {ratio}) | 482 † |
-| Unit | source_name | A | No test concept; unit from the source test name | 195 † |
-| Unit | partner_unit | A | Copied from labeled records of the same test, same partner | 160 |
-| Unit | mapped_string | B | Unit text mapped by hand to a standard unit ({ratio}, Index and S/CO included) | 49,073 † |
-| Unit | source_name | C | No test concept; unit from the source test name | 365 |
+| Unit | copied_from_unit_concept_id | | Arrived with a unit concept; copied into the inferred columns | 5,721,737 |
+| Unit | explicit | C | Rule on the test name (end-tidal CO2 in mm[Hg], tidal volume in mL, pain and other scores in [score], pH) | 971,623 |
+| Unit | dataset_unit | A | Copied from labeled records of the same test, any partner | 157,290 |
+| Unit | partner_unit, dataset_unit | C | Copied from labeled records of the same test, same partner first; medians must agree within a factor of 2 | 74,361 |
+| Unit | mapped_string | B | Unit text mapped by hand to a standard unit ({ratio}, Index and S/CO included) | 49,019 |
+| Unit | explicit | A | Set by hand per test (including pH, INR and ratios in {ratio}) | 22,917 |
+| Unit | range_match | A | Copied from labeled records of the same test, same partner and same reference range | 14,064 |
+| Unit | source_name | A | No test concept; unit from the source test name | 1,033 |
+| Unit | source_name | C | No test concept; unit from the source test name | 469 |
 | Unit | value_split | C | Test holds two units; each record's unit set by its value (body temperature under 45 is °C, over 80 is °F) | 340 |
+| Unit | partner_unit | A | Copied from labeled records of the same test, same partner | 160 |
 | Unit | reused_mapping | B | Same unit text already maps to a unit elsewhere in the table | 16 |
-| Unitless | unitless | C | Rule on the test name (counts, Ct values, RAST class) | 469,736 † |
-| Unitless | unitless | A | Specific gravity | 32,956 † |
-| Unitless | unitless | B | Unit text ACTIVITY COEFF | 77 † |
-| No unit | unmapped_string | B | Unit text left unmapped on purpose (log viral loads, per-ejaculate counts) | 5,988 |
-| No unit | not_a_quantity | C | Codes and IDs stored as numbers (EKG impression codes, HLA alleles, case numbers) | 3,794 |
-| No unit | needs_review | C | No rule yet | 661 |
+| Unitless | unitless | C | Rule on the test name (counts, Ct values, RAST class) | 14,784 |
+| Unitless | unitless | A | Specific gravity | 9,660 |
+| Unitless | unitless | B | Unit text ACTIVITY COEFF | 1 |
+| No unit | unmapped_string | B | Unit text left unmapped on purpose (log viral loads, per-ejaculate counts) | 5,956 |
+| No unit | not_a_quantity | C | Codes and IDs stored as numbers (EKG impression codes, HLA alleles, case numbers) | 3,790 |
+| No unit | needs_review | C | No rule yet | 659 |
 | No unit | not_a_unit | B | Junk in the unit field ("Possible", "PharmD") | 275 |
 | No unit | suspect_concept | C | Values don't fit the test (total lung capacity stored under RV/TLC) | 225 |
-| No unit | suspect_concept | A | Values don't fit the test; likely a concept-mapping error | 88 † |
+| No unit | suspect_concept | A | Values don't fit the test; likely a concept-mapping error | 82 |
 | No unit | needs_review | A | Undetermined | 4 |
 | No unit | no_concept | A | No test concept and no source-name rule | 2 |
 
@@ -77,16 +70,16 @@ have UCUM units (`{ratio}`, `pH`, `{index}`, `[score]`, `{fraction}`,
 
 Records with no unit concept fell into three groups, handled in order:
 
-- **A. No unit, but a reference range** (205,838). Mostly copied from labeled
+- **A. No unit, but a reference range** (205,212). Mostly copied from labeled
   records of the same test, accepted only if the medians agree within a factor
   of 2 (which keeps 98 °F from being called Celsius); an exact reference-range
   match is trusted as is.
-- **B. Unit text with no unit concept** (55,429). 223 distinct strings: 146
+- **B. Unit text with no unit concept** (55,267). 223 distinct strings: 146
   map to standard units (nine spellings of the eGFR unit alone; {ratio},
   Index and S/CO among them), 1 is unitless, 18 are junk ("Possible",
   "PharmD"), and 58 are left unmapped on purpose (log viral loads,
   per-ejaculate counts).
-- **C. No unit, no reference range** (1,066,417), almost all flowsheet and
+- **C. No unit, no reference range** (1,066,251), almost all flowsheet and
   exam data from one partner. About 100 tests cover 97% of it, mostly with no
   labeled records to copy from, so units come from rules on the test name
   (end-tidal CO2 in mm[Hg], tidal volume in mL, pain scores in [score]).
@@ -137,16 +130,16 @@ siemens, CEA in "mg/dL" that is ng/mL).
 
 ## Not resolved
 
-- **11,037 records with no unit**: Part B strings left unmapped (5,988), codes
-  and identifiers stored as numbers (3,794), small tests with no rule yet
-  (667), the flagged records below (313 †), and junk unit text (275).
-- **3,189 records with a unit that can't convert**: arbitrary antibody units,
-  log viral loads, tests holding two different quantities.
-- **Values that don't fit their test**, flagged and not converted (313 †
-  records; 307 once the 6 total/HDL records leave them): for example
-  "total T4" that is free T4, and total lung capacity
-  stored under the RV/TLC ratio. Also noted but left as recorded: PT values in
-  seconds under the INR concept, RBC counts under reticulocytes.
+- **10,993 records with no unit**: Part B strings left unmapped (5,956), codes
+  and identifiers stored as numbers (3,790), small tests with no rule yet
+  (665), the flagged records below (307), and junk unit text (275).
+- **4,653 records with a unit that can't convert**: arbitrary antibody units,
+  log viral loads, tests holding two different quantities (1,440 PT values
+  in seconds under the INR concept, whose canonical unit is {ratio}).
+- **Values that don't fit their test**, flagged and not converted (307
+  records): for example "total T4" that is free T4, and total lung capacity
+  stored under the RV/TLC ratio. Also noted but left as recorded: RBC counts
+  under reticulocytes.
 
 ## Notebooks
 
