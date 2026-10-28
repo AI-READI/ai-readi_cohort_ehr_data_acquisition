@@ -65,8 +65,9 @@ part works.
 
 **Concept correction** (Part A, cell 1d). `measurement_concept_corrections`
 maps a concept to the one its records really hold; Parts A-D group by the
-result, `harmonized_measurement_concept_id`. One rule, 3023884 -> 3011163;
-the evidence (F4) is in the README's "Records under the wrong concept".
+result, `harmonized_measurement_concept_id`. One rule, 3023884 -> 3011163
+(README, "Records under the wrong concept"). The F4 match counts are in
+the rule's note in 1d.
 Check 1e flags corrected records at or below the rule's `implausible_max`.
 The one corrected record that arrived labeled mg/dL is relabeled to
 {ratio} in 17d.
