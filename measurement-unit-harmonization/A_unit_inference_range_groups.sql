@@ -413,6 +413,7 @@ SELECT * FROM VALUES
   -- unitless: no UCUM unit
   ('specific gravity, urine',         'unitless',    NULL),
   ('specific gravity, urn',           'unitless',    NULL),
+  ('specific gravity, urn, externa',  'unitless',    NULL),
   -- units
   ('albumin/creatinine ratio, urn,',  'source_name', 'mg/g{creat}'),
   ('cholesterol (total), external',   'source_name', 'mg/dL'),

@@ -377,15 +377,19 @@ ORDER BY test_name, data_partner_id, part, unit_inference_method, matches, v;
 
 -- COMMAND ----------
 
--- F5. Part C groups that got their unit from a source-name rule (step 4).
---     E 15a shows only their total. Last run: 12 groups, 469 records, all
---     partner 3058, every unit fitting its values.
-SELECT d.data_partner_id, d.test_name, d.n, d.p05, d.med, d.p95,
-       u.concept_code AS unit, d.note AS source_name
+-- F5. Part C groups whose source name is on Part A's source-name list
+--     (cell 7), whatever method they got: source_name, unitless (specific
+--     gravity), or an earlier step's. E 15a shows only totals. Expect: all
+--     partner 3058; 12 source_name groups (469 records) with units that fit
+--     their values, and "Specific Gravity, URN, Externa" unitless (108).
+SELECT d.data_partner_id, d.test_name, d.unit_inference_method, d.n, d.p05, d.med, d.p95,
+       u.concept_code AS unit, r.source_name
 FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions d
+JOIN hive_metastore.ehr_union_clean_metrics.unit_source_name_rules r
+  ON lower(trim(d.test_name)) = r.source_name
 LEFT JOIN omop_vocab.concept u ON u.concept_id = d.inferred_unit_concept_id
-WHERE d.unit_inference_method = 'source_name'
-ORDER BY d.n DESC;
+WHERE d.harmonized_measurement_concept_id = 0
+ORDER BY d.unit_inference_method, d.n DESC;
 
 
 -- COMMAND ----------
@@ -417,18 +421,24 @@ ORDER BY 1, 4 DESC;
 -- COMMAND ----------
 
 -- F7. F6 for every test: events stored under two unit codes that differ
---     only in case (s/S, l/L, h/H, ...). Not run yet.
+--     only in case (s/S, l/L, h/H, ...). Last run: all partner 2084, 17
+--     tests, 4,119 events (S/s on 14 tests, L/l on 1, H/h on 2).
 WITH k AS (
   SELECT k.data_partner_id, k.test_id, k.person_id, k.measurement_datetime,
          k.value_as_number, u.concept_code AS unit_code
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
   JOIN omop_vocab.concept u ON u.concept_id = k.effective_unit_concept_id
+),
+e AS (
+  SELECT data_partner_id, test_id, person_id, measurement_datetime, value_as_number,
+         array_join(sort_array(collect_set(unit_code)), ',') AS codes
+  FROM k
+  GROUP BY 1, 2, 3, 4, 5, lower(unit_code)
+  HAVING COUNT(DISTINCT unit_code) > 1
 )
-SELECT data_partner_id, test_id, codes, COUNT(*) AS n_events
-FROM (SELECT data_partner_id, test_id, person_id, measurement_datetime, value_as_number,
-             array_join(sort_array(collect_set(unit_code)), ',') AS codes
-      FROM k
-      GROUP BY 1, 2, 3, 4, 5, lower(unit_code)
-      HAVING COUNT(DISTINCT unit_code) > 1)
-GROUP BY 1, 2, 3
+SELECT e.data_partner_id, e.test_id, c.concept_name AS test_name, e.codes,
+       COUNT(*) AS n_events
+FROM e
+LEFT JOIN omop_vocab.concept c ON CAST(c.concept_id AS STRING) = e.test_id
+GROUP BY 1, 2, 3, 4
 ORDER BY n_events DESC;

@@ -220,14 +220,16 @@ canonical unit, 24,445 unitless, 4,653 with a unit but no conversion,
 10,993 with no unit.
 
 **Source-name list** (Part A cell 7, used by Part C step 4). Concept-0
-records get a unit from an exact list of 79 lowercased, trimmed source
+records get a unit from an exact list of 80 lowercased, trimmed source
 names (some source values carry a trailing space), not LIKE patterns. The
 patterns had no value check, and a PR review pointed out what they could
 catch (HbA1c under `%hemoglobin%`, thyroglobulin under `%globulin%`,
 percentages under `%neutrophils%`). Every name they actually matched in the
 2026-10-28 run was checked against its values and reference ranges (E 8b
 for Part A, F5 for Part C) and is on the list with the same unit, so a
-rerun should give the same counts. A new name with no other evidence now
+rerun should give the same counts. F5 lists every Part C group on the
+list whatever its method: one, "Specific Gravity, URN, Externa" (108),
+gets unitless rather than source_name. A new name with no other evidence now
 shows up as no_concept in 8b (Part A) or needs_review in 15c (Part C).
 
 ## Next step
@@ -238,9 +240,11 @@ review matching its comment. The README, this file and the charts
 ([charts/make_charts.py](charts/make_charts.py) has the counts typed in)
 carry its counts. After a rerun, update all three from E.
 
-Not run yet: the exact source-name list (A cells 7-9, then C from 13, D,
-E). Expected: counts unchanged; 8b's no_concept only PPD and "Viscosity,
-Serum"; F5 the same 12 groups.
+Not run yet: the source-name list with "Specific Gravity, URN, Externa"
+added (the run without it left those 108 records needs_review). Expected:
+E1 and 20a back to the counts above (Part C unitless 14,784, needs_review
+659); 8b's no_concept only PPD and "Viscosity, Serum"; F5 the 12
+source_name groups plus that one unitless group.
 
 ## Not done
 
@@ -263,8 +267,10 @@ Serum"; F5 the same 12 groups.
    - Reticulocytes [#/volume] by automated count: 312 records in 10\*6/mm3
      with median 4.25, so RBC counts, not reticulocytes (about 0.06)
    - Expiratory minute volume: `L` and `l` rows, 869 each, also each event
-     stored twice (F6). F7 looks for other case-only unit pairs; not run
-     yet.
+     stored twice (F6). F7 finds the same in 17 of partner 2084's tests
+     (4,119 events; `S`/`s`, `L`/`l`, `H`/`h`). The `S` -> `s` and `H` -> `h`
+     relabels make both copies convert to the same value. Left as they
+     arrived; deduplicating is upstream's call.
    - Tidal volume setting: mL and mL/kg (labeled kg) under one concept
 3. **Write-up for the boss**: drafted as
    [README.md](README.md), charts from

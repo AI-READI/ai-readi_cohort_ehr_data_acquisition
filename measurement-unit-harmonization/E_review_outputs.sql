@@ -147,8 +147,10 @@ SELECT * FROM (
 --      before 16 splits value_split groups into bands.
 --      Expect: total 1,066,251; explicit 971,623 (scores, pain scales,
 --      pH, ratios included); unitless 14,784 (counts, Ct values, RAST
---      class); value_split 565; source_name 12 groups, 469 records (F5
---      lists them). E1 has the per-record counts after the split.
+--      class; 108 of them "Specific Gravity, URN, Externa" from the
+--      source-name list); needs_review 659; value_split 565; source_name 12
+--      groups, 469 records (F5 lists them). E1 has the per-record counts
+--      after the split.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions
 GROUP BY 1

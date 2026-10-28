@@ -136,11 +136,12 @@ siemens, CEA in "mg/dL" that is ng/mL).
 - **4,653 records with a unit that can't convert**: arbitrary antibody units,
   log viral loads, tests holding two different quantities (1,440 PT values
   in seconds under the INR concept, whose canonical unit is {ratio}).
-- **Records stored twice** by partner 2084, under unit codes that differ
-  only in case: the PT-in-seconds records above (`s` and `S`, 720 each) and
-  expiratory minute volume (`L` and `l`, 869 each). Probe F6 in
-  [F_probes.sql](F_probes.sql) matches them by person, time and value. They
-  are left as they arrived.
+- **Records stored twice** by partner 2084: 4,119 events in 17 tests are
+  each stored under two unit codes that differ only in case (`s` and `S`,
+  `L` and `l`, `H` and `h`), with the same person, time and value. The
+  PT-in-seconds records above are among them. Both copies convert to the
+  same value, and both are left as they arrived. Probes F6 and F7 in
+  [F_probes.sql](F_probes.sql) find them.
 - **Values that don't fit their test**, flagged and not converted (307
   records): for example "total T4" that is free T4, and total lung capacity
   stored under the RV/TLC ratio. Also noted but left as recorded: RBC counts
