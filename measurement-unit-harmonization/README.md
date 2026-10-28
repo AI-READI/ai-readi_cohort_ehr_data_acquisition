@@ -164,9 +164,7 @@ and write access to `hive_metastore.ehr_union_clean_metrics`.
 4. Run E. Every cell marked "Check" should return no rows, and every review
    should match the expectation in its comment.
 
-The notebooks are in Databricks under
-[/Shared/vital-lab-results-missingunits](https://adb-7791682337464088.8.azuredatabricks.net/editor/folders/workspace?o=7791682337464088),
-imported from these files:
+The notebooks, imported from these files:
 
 | Notebook | Source |
 |---|---|
