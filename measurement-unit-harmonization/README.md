@@ -98,19 +98,12 @@ harmonization uses: the same one, except where the
 `measurement_concept_corrections` table replaces it. All units, canonical
 units and conversions are per harmonized concept. There is one correction:
 
-- **3023884 "Cholesterol in HDL/Cholesterol.total [Mass Ratio]" is
-  total/HDL, now 3011163 "Cholesterol.total/Cholesterol in HDL".** All
-  6,464 records are partner 3058's. HDL/total can't exceed 1, and these
-  run from 1.5 to 34.3 (median 3.5). Probe F4 compared each record with
-  the same person's same-day total cholesterol and HDL: 6,454 of the 6,457
-  records without a reference range equal total/HDL within 10%, as do 5 of
-  the 6 with one, and the one that arrived with a unit (labeled mg/dL,
-  value 4.0 against a same-day total/HDL of 4.03). The other 4 have no
-  same-day lipids to compare with. Partner 2084 files the same ratio
-  under 3011163 (384 of its records that arrived with a unit match
-  total/HDL the same way), and partner 3058's concept-0 "Cholesterol/HDL
-  Ratio" records match it too. A check (Part A, 1e) flags any corrected
-  record at or below 1, which could not be total/HDL; F4 found none.
+- **3023884 "Cholesterol in HDL/Cholesterol.total [Mass Ratio]" ->
+  3011163 "Cholesterol.total/Cholesterol in HDL".** HDL/total can't exceed
+  1, and every one of the 6,464 records (all partner 3058's) is above 1
+  (1.5 to 34.3, median 3.5). So it's the concept that's wrong, not the
+  values: they're total/HDL, and they match the same person's same-day
+  total/HDL (probe F4).
 
 ## Conversion to a canonical unit
 
