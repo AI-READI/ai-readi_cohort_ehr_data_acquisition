@@ -21,31 +21,6 @@ where visit_occurrence_id  in (select distinct visit_occurrence_id from all_othe
 
 -- COMMAND ----------
 
-select count(distinct person_id) from ehr_union.person
-
--- COMMAND ----------
-
-select count(distinct s.studyid) as distinct_person_cnt
-from omop_survey.airea_di_omop_data_2026_09_21 s
-inner join ehr_union.person p on s.studyid = p.person_id
-
--- COMMAND ----------
-
-select p.person_id, data_partner_id
-from ehr_union.person p
-left join omop_survey.airea_di_omop_data_2026_09_21 s on p.person_id = s.studyid
-where s.studyid is null
-
--- COMMAND ----------
-
-select * from omop_survey.person where person_id in (3002, 5223)
-
--- COMMAND ----------
-
-select count(*) from ehr_union.visit_occurrence
-
--- COMMAND ----------
-
 create or replace table ehr_union_clean.person as
 WITH all_other AS (
     SELECT person_id FROM ehr_union.condition_occurrence 
@@ -66,19 +41,90 @@ select * from ehr_union.person where person_id in (select distinct person_id fro
 
 -- COMMAND ----------
 
-SELECT *
-FROM ehr_union_clean.person
-WHERE year_of_birth IS NOT NULL
-  AND (YEAR(CURRENT_DATE()) - year_of_birth) > 90
-
--- COMMAND ----------
-
 -- If person is over 90, cap birth year so that age is at most 90
 UPDATE ehr_union_clean.person
 SET year_of_birth = year(current_date()) - 90
 WHERE year_of_birth IS NOT NULL
   AND (year(current_date()) - year_of_birth) > 90;
 
+
+-- COMMAND ----------
+
+-- Truncate or remove records based on a cutoff across all clinical tables in ehr_union_clean
+-- Records with a start date after the cutoff are removed.
+-- Records that span the cutoff have their end date and end datetime capped at the cutoff.
+
+-- One cutoff instant, with the date derived from it so both always refer to the same moment
+DECLARE OR REPLACE VARIABLE cutoff_ts   TIMESTAMP DEFAULT CAST(current_timestamp() AS TIMESTAMP);
+DECLARE OR REPLACE VARIABLE cutoff_date DATE      DEFAULT CAST(cutoff_ts AS DATE);
+
+-- === drug_exposure ===
+DELETE FROM ehr_union_clean.drug_exposure
+WHERE CAST(drug_exposure_start_date AS DATE) > cutoff_date;
+
+UPDATE ehr_union_clean.drug_exposure
+SET drug_exposure_end_date     = CASE WHEN drug_exposure_end_date > cutoff_date
+                                      THEN CAST(cutoff_date AS DATE)
+                                      ELSE drug_exposure_end_date END,
+    drug_exposure_end_datetime = CASE WHEN drug_exposure_end_datetime > cutoff_ts
+                                      THEN CAST(cutoff_ts AS TIMESTAMP)
+                                      ELSE drug_exposure_end_datetime END
+WHERE (drug_exposure_end_date > cutoff_date OR drug_exposure_end_datetime > cutoff_ts)
+  AND CAST(drug_exposure_start_date AS DATE) <= cutoff_date;
+
+-- === condition_occurrence ===
+DELETE FROM ehr_union_clean.condition_occurrence
+WHERE CAST(condition_start_date AS DATE) > cutoff_date;
+
+UPDATE ehr_union_clean.condition_occurrence
+SET condition_end_date     = CASE WHEN condition_end_date > cutoff_date
+                                  THEN CAST(cutoff_date AS DATE)
+                                  ELSE condition_end_date END,
+    condition_end_datetime = CASE WHEN condition_end_datetime > cutoff_ts
+                                  THEN CAST(cutoff_ts AS TIMESTAMP)
+                                  ELSE condition_end_datetime END
+WHERE (condition_end_date > cutoff_date OR condition_end_datetime > cutoff_ts)
+  AND CAST(condition_start_date AS DATE) <= cutoff_date;
+
+-- === device_exposure ===
+DELETE FROM ehr_union_clean.device_exposure
+WHERE CAST(device_exposure_start_date AS DATE) > cutoff_date;
+
+UPDATE ehr_union_clean.device_exposure
+SET device_exposure_end_date     = CASE WHEN device_exposure_end_date > cutoff_date
+                                        THEN CAST(cutoff_date AS DATE)
+                                        ELSE device_exposure_end_date END,
+    device_exposure_end_datetime = CASE WHEN device_exposure_end_datetime > cutoff_ts
+                                        THEN CAST(cutoff_ts AS TIMESTAMP)
+                                        ELSE device_exposure_end_datetime END
+WHERE (device_exposure_end_date > cutoff_date OR device_exposure_end_datetime > cutoff_ts)
+  AND CAST(device_exposure_start_date AS DATE) <= cutoff_date;
+
+-- === measurement (point-in-time, no end date) ===
+DELETE FROM ehr_union_clean.measurement
+WHERE CAST(measurement_date AS DATE) > cutoff_date;
+
+-- === observation (point-in-time, no end date) ===
+DELETE FROM ehr_union_clean.observation
+WHERE CAST(observation_date AS DATE) > cutoff_date;
+
+-- === procedure_occurrence (point-in-time, no end date) ===
+DELETE FROM ehr_union_clean.procedure_occurrence
+WHERE CAST(procedure_date AS DATE) > cutoff_date;
+
+-- === visit_occurrence ===
+DELETE FROM ehr_union_clean.visit_occurrence
+WHERE CAST(visit_start_date AS DATE) > cutoff_date;
+
+UPDATE ehr_union_clean.visit_occurrence
+SET visit_end_date     = CASE WHEN visit_end_date > cutoff_date
+                              THEN CAST(cutoff_date AS DATE)
+                              ELSE visit_end_date END,
+    visit_end_datetime = CASE WHEN visit_end_datetime > cutoff_ts
+                              THEN CAST(cutoff_ts AS TIMESTAMP)
+                              ELSE visit_end_datetime END
+WHERE (visit_end_date > cutoff_date OR visit_end_datetime > cutoff_ts)
+  AND CAST(visit_start_date AS DATE) <= cutoff_date;
 
 -- COMMAND ----------
 
@@ -153,6 +199,7 @@ SELECT * FROM ehr_union_clean.location where location_id in (select location_id 
 -- drop certain person; update person table
 DELETE FROM ehr_union_clean.person
 WHERE person_id IN (
+    --unmatching id from survey
 2097,
 1537,
 8360,
@@ -160,7 +207,7 @@ WHERE person_id IN (
 2129,
 1750,
 1454,
---MacTel/LMRI participants ID
+    --MacTel/LMRI participants ID
 3001, 3002, 3003, 6001, 6002, 6003, 6004, 9001
 )
 
@@ -188,7 +235,7 @@ select
   condition_source_value,
   condition_source_concept_id,
   data_partner_id
-from ehr_union.condition_occurrence
+from ehr_union_clean.condition_occurrence
 where person_id in (select person_id from ehr_union_clean.person);
 
 create or replace table ehr_union_clean.device_exposure as
@@ -209,7 +256,7 @@ select
   quantity,
   visit_detail_id,
   data_partner_id
-from ehr_union.device_exposure
+from ehr_union_clean.device_exposure
 where person_id in (select person_id from ehr_union_clean.person);
 
 create or replace table ehr_union_clean.drug_exposure as
@@ -237,7 +284,7 @@ select
   drug_source_value,
   drug_source_concept_id,
   data_partner_id
-from ehr_union.drug_exposure
+from ehr_union_clean.drug_exposure
 where person_id in (select person_id from ehr_union_clean.person);
 
 create or replace table ehr_union_clean.measurement as
@@ -262,7 +309,7 @@ select
   measurement_source_concept_id,
   unit_source_value,
   data_partner_id
-from ehr_union.measurement
+from ehr_union_clean.measurement
 where person_id in (select person_id from ehr_union_clean.person);
 
 create or replace table ehr_union_clean.observation as
@@ -286,7 +333,7 @@ select
   unit_source_value,
   qualifier_source_value,
   data_partner_id
-from ehr_union.observation
+from ehr_union_clean.observation
 where person_id in (select person_id from ehr_union_clean.person);
 
 create or replace table ehr_union_clean.procedure_occurrence as
@@ -306,7 +353,7 @@ select
   procedure_source_concept_id,
   modifier_source_value,
   data_partner_id
-from ehr_union.procedure_occurrence
+from ehr_union_clean.procedure_occurrence
 where person_id in (select person_id from ehr_union_clean.person);
 
 create or replace table ehr_union_clean.visit_occurrence as
@@ -328,11 +375,12 @@ select
   discharge_to_source_value,
   preceding_visit_occurrence_id,
   data_partner_id
-from ehr_union.visit_occurrence
+from ehr_union_clean.visit_occurrence
 where person_id in (select person_id from ehr_union_clean.person);
 
 -- COMMAND ----------
 
+-- DBTITLE 1,Null out HIPAA sensitive columns (non-clinical tables)
 -- Null out HIPAA sensitive columns per OMOP CDM format and list all columns explicitly
 -- Non-clinical table: person
 
@@ -342,8 +390,8 @@ select
   -- Null out sensitive columns
   year_of_birth,
   month_of_birth,
-  null as day_of_birth,
-  null as birth_datetime,
+  cast(null as int) day_of_birth,
+  cast(null as timestamp) as birth_datetime,
   gender_concept_id,
   gender_source_value,
   gender_source_concept_id,
@@ -372,7 +420,7 @@ select
   cause_source_value,
   cause_source_concept_id,
   data_partner_id
-from ehr_union.death
+from ehr_union_clean.death
 where person_id in (select person_id from ehr_union_clean.person);
 
 -- Non-clinical table: payer_plan_period
@@ -387,22 +435,25 @@ select
   place_of_service_concept_id,
   place_of_service_source_value,
   data_partner_id
-from ehr_union.care_site;
+from ehr_union_clean.care_site;
 
 -- Non-clinical table: provider
 
 create or replace table ehr_union_clean.provider as
 select
   provider_id,
-  null as provider_name,
-  null as npi,
-  null as dea,
-  null as provider_source_value,
-  null as specialty_source_value,
+  cast(null as string) as provider_name,
+  cast(null as string) as npi,
+  cast(null as string) as dea,
+  cast(null as string) as provider_source_value,
+  cast(null as string) as specialty_source_value,
   specialty_concept_id,
   specialty_source_concept_id,
   care_site_id,
-  null as year_of_birth,
-  null as gender_concept_id,
+  cast(null as int)    as year_of_birth,
+  cast(null as int)    as gender_concept_id,
   data_partner_id
-from ehr_union.provider;
+from ehr_union_clean.provider;
+
+-- COMMAND ----------
+

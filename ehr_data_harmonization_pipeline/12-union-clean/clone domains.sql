@@ -56,4 +56,3 @@ CREATE OR REPLACE TABLE ehr_union_clean.provider DEEP CLONE ehr_union.provider;
 
 -- COMMAND ----------
 
-
