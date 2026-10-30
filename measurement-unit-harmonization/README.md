@@ -167,7 +167,7 @@ The notebooks, imported from these files:
 | E. Checks and review of the run | [E_review_outputs.sql](E_review_outputs.sql) |
 | F. Probes for review questions (optional) | [F_probes.sql](F_probes.sql) |
 
-Columns added to `ehr_union_clean.measurement`'s, and the numeric records
+Columns added to `ehr_union_clean.measurement`, and the numeric records
 each is empty for:
 
 | Column | Type | Contents | Empty for |

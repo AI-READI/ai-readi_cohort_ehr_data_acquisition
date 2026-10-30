@@ -19,13 +19,13 @@ unit (or is marked unitless), a canonical unit, and a harmonized value.
   table") lacks three of the columns and has to be dropped (README, "Setup
   and running").
 - Original `measurement_concept_id`, `unit_concept_id` and
-  `unit_source_value` are left untouched. A record's effective unit is
-  `COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0))`; after 1b
-  that's the same as `inferred_unit_concept_id`, except that 0 means no unit.
-  Following OMOP, `inferred_unit_concept_id` is 0 where a record has unit
+  `unit_source_value` are left untouched.
+- Following OMOP, `inferred_unit_concept_id` is 0 where a record has unit
   text that maps to no unit (Part B's unitless, not_a_unit and
-  unmapped_string, and the same records with no numeric value, set in 1b)
-  and NULL where there is no unit text.
+  unmapped_string; for records with no numeric value, 1b) and NULL where
+  there is no unit text. So a record's effective unit is
+  `COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0))`,
+  which after 1b is `inferred_unit_concept_id` with 0 read as no unit.
 
 Decision and rule tables (all in `hive_metastore.ehr_union_clean_metrics`):
 `measurement_concept_corrections`, `unit_concept_rules`, `unit_inference_range_decisions`, `unit_source_name_rules`,
@@ -178,8 +178,8 @@ carry its counts. After a rerun, update all three from E. The two changes
 since (live REDCap map in F2; inferred unit 0 for unmappable unit text)
 haven't been rerun: expect E 20a unchanged and E3 empty.
 
-The work moved from Siggie's fork (PR #3) to a branch in
-AI-READI/ai-readi_cohort_ehr_data_acquisition, at Stephanie's request.
+Work continues on a branch in AI-READI/ai-readi_cohort_ehr_data_acquisition,
+not Siggie's fork; PR #3 (from the fork) holds the earlier review.
 
 Stephanie's decisions (2026-10-30):
 
@@ -199,7 +199,7 @@ Agreed work, in order:
    extreme (ext_lo/ext_hi), in the list's units. It was written for the
    survey data. Build a limits table keyed by EHR concept in Part A's
    notebook (fields map to concepts through `target_concept_id` in
-   `scripts/unit_concept_lookup_extended.csv`), with a pointer to 09's
+   [unit_concept_lookup_extended.csv](https://github.com/AI-READI/DataElementMaps/blob/main/redCapDataDictionaryWithExtension/value-set-mapping-common/scripts/unit_concept_lookup_extended.csv)), with a pointer to 09's
    version. Check Part A's records on list tests: the value and the
    reference range, in the record's inferred unit. An inferred unit that
    makes them implausible is dropped (no unit), with a method saying why.
@@ -247,17 +247,6 @@ Agreed work, in order:
      arrived; deduplicating is upstream's call.
    - Tidal volume setting: mL and mL/kg (labeled kg) under one concept
 3. **Canonical-unit judgment calls** (19f). Undecided:
-   - AI-READI's REDCap mapping
-     ([value-set-mapping-common](https://github.com/AI-READI/DataElementMaps/tree/main/redCapDataDictionaryWithExtension/value-set-mapping-common)
-     in DataElementMaps) gives a unit per test for about 50 tests; always
-     read the live version. Every test on it that's in the EHR data is
-     harmonized (F2). Its labels differ from our UCUM codes for Na, K, Cl,
-     total CO2 (mEq/L; ours mmol/L, same numbers) and AST/ALT/ALP (IU/L;
-     ours [U]/L, equivalent); UCUM stays (Stephanie, 2026-10-30). Urine
-     albumin is mg/dL there; our canonical unit hasn't been checked against
-     it. Insulin's ng/mL is for the survey data (09's U5); EHR insulin is
-     under 3009413 and 3016244 (Insulin [Units/volume]) in uIU/mL, and
-     there are no records under the list's 3022466.
    - Real choices in the data: CRP mg/L vs mg/dL (51/49), testosterone ng/mL
      vs ng/dL (56/44), T3 ng/dL vs ng/mL, radiation dose cGy vs Gy, 24 h
      urine urea nitrogen g vs mg.
@@ -273,11 +262,23 @@ Agreed work, in order:
    1.8-13), across partners 2084, 3058 and 8469. Only one (2084, value 13,
    same-day total/HDL 13.1) could be matched to that day's lipids; the
    rest have no same-day total and HDL. They're converted as mg/dL for now.
-6. **A/G and BUN/creatinine ratios** (F2, F3c). 4 A/G records have unit
-   text `**Please` (not_a_unit, so no unit; values about 1.8). The REDCap
-   list has two BUN/creatinine entries: import_bun_creatinine_ratio is
-   3018311, but import_buncreatinineratio is 3033837 "Creatinine/Urea
-   nitrogen", the inverse ratio, which has no records.
+6. **The REDCap list against our data.** AI-READI's REDCap mapping
+   ([value-set-mapping-common](https://github.com/AI-READI/DataElementMaps/tree/main/redCapDataDictionaryWithExtension/value-set-mapping-common)
+   in DataElementMaps; always read the live version) gives a unit per test
+   for about 50 tests. Every test on it that's in the EHR data is
+   harmonized (F2). Its labels differ from our UCUM codes for Na, K, Cl,
+   total CO2 (mEq/L; ours mmol/L, same numbers) and AST/ALT/ALP (IU/L;
+   ours [U]/L, equivalent); UCUM stays. Loose ends:
+   - Urine albumin is mg/dL on the list; our canonical unit hasn't been
+     checked against it.
+   - Insulin: the list's ng/mL under 3022466 is for the survey data (09's
+     U5). EHR insulin is under 3009413 and 3016244 (Insulin
+     [Units/volume]) in uIU/mL; 3022466 has no EHR records.
+   - BUN/creatinine: import_bun_creatinine_ratio is 3018311, but
+     import_buncreatinineratio is 3033837 "Creatinine/Urea nitrogen", the
+     inverse ratio, which has no records.
+   - 4 A/G ratio records have unit text `**Please` (not_a_unit, so no
+     unit; values about 1.8) (F3c).
 
 ## Gotchas learned
 
@@ -293,7 +294,7 @@ Agreed work, in order:
 - In Spark SQL an apostrophe inside a string is `\'`. `''` silently joins two
   strings (`'[APL''U]'` became `[APLU]`).
 - Concept-level rules (e.g. "unitless") apply to every group with that concept.
-- exploration_queries.md's sizing query counts unit concept 0 as a unit, so
+- [exploration_queries.md](exploration_queries.md)'s sizing query counts unit concept 0 as a unit, so
   its "concepts with several units" figure overstates.
 - Some unit codes in the data aren't valid UCUM (`[degC]`, `mL/min/1.73.m2`).
   Map them with a relabel rule, not a factor row, so the code check stays clean.

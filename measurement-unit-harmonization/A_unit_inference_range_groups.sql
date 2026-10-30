@@ -48,7 +48,8 @@
 --    columns. Does nothing if the table exists.
 --      harmonized_measurement_concept_id  the test, corrected (cell 1d)
 --      unit_inference_method       how the unit was decided
---      inferred_unit_concept_id    the record's unit (UCUM concept)
+--      inferred_unit_concept_id    the record's unit (UCUM concept); 0 for unit
+--                                  text that maps to no unit (OMOP's convention)
 --      inferred_unit_source_value  its UCUM code
 --      canonical_unit_concept_id   the test's canonical unit, where
 --                                  harmonized_value_as_number is in it
