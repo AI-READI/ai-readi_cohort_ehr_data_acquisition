@@ -279,7 +279,7 @@ ORDER BY greatest(abs(ratio), abs(try_divide(1, ratio))) DESC NULLS FIRST;
 --      (19d, including INR's seconds records).
 SELECT CASE WHEN canonical_unit_concept_id IS NOT NULL  THEN 'in canonical unit'
             WHEN harmonized_value_as_number IS NOT NULL THEN 'unitless'
-            WHEN COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id) IS NOT NULL
+            WHEN COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0)) IS NOT NULL
                                                         THEN 'has unit, no conversion'
             ELSE 'no unit'
        END AS status,
@@ -340,7 +340,7 @@ SELECT unit_inference_method, unit_conversion_method,
        COUNT(*) AS n
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
 WHERE value_as_number IS NOT NULL
-  AND (inferred_unit_concept_id IS NOT NULL OR COALESCE(unit_concept_id, 0) <> 0)
+  AND (COALESCE(inferred_unit_concept_id, 0) <> 0 OR COALESCE(unit_concept_id, 0) <> 0)
 GROUP BY 1, 2, 3, 4
 HAVING unit_inference_method IS NULL OR unit_conversion_method IS NULL
     OR no_inferred_unit OR no_canonical_code;

@@ -88,6 +88,15 @@ WHEN MATCHED THEN UPDATE SET
   t.inferred_unit_concept_id   = d.unit_concept_id,
   t.inferred_unit_source_value = d.concept_code;
 
+-- Records with no numeric value and unit text but no unit concept get
+-- inferred unit 0, OMOP's "source unit that can't be mapped". Part B does
+-- the same for numeric records whose unit text maps to no unit.
+UPDATE hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
+SET inferred_unit_concept_id = 0
+WHERE value_as_number IS NULL
+  AND unit_source_value IS NOT NULL
+  AND COALESCE(unit_concept_id, 0) = 0;
+
 -- COMMAND ----------
 
 -- 1d. Concept corrections. Last result: check 1e, should be empty.
@@ -135,7 +144,7 @@ SELECT *,
             THEN concat('src:', measurement_source_value)
             ELSE CAST(harmonized_measurement_concept_id AS STRING)
        END AS test_id,
-       COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id) AS effective_unit_concept_id
+       COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0)) AS effective_unit_concept_id
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
 WHERE value_as_number IS NOT NULL
   AND COALESCE(unit_inference_method, '') <> 'suspect_concept';

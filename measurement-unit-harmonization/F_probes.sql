@@ -190,9 +190,9 @@ arrived AS (
 SELECT l.form, l.field, l.concept_id, c.concept_name, l.list_unit,
        COUNT(m.value_as_number) AS n_numeric,
        COUNT_IF(COALESCE(m.unit_concept_id, 0) <> 0) AS n_arrived_with_unit,
-       COUNT_IF(COALESCE(m.unit_concept_id, 0) = 0 AND m.inferred_unit_concept_id IS NOT NULL) AS n_unit_inferred,
+       COUNT_IF(COALESCE(m.unit_concept_id, 0) = 0 AND COALESCE(m.inferred_unit_concept_id, 0) <> 0) AS n_unit_inferred,
        COUNT_IF(m.value_as_number IS NOT NULL AND COALESCE(m.unit_concept_id, 0) = 0
-                AND m.inferred_unit_concept_id IS NULL) AS n_no_unit,
+                AND COALESCE(m.inferred_unit_concept_id, 0) = 0) AS n_no_unit,
        COUNT_IF(m.canonical_unit_concept_id IS NOT NULL) AS n_in_canonical,
        array_join(collect_set(m.canonical_unit_value), ', ') AS our_canonical_unit,
        first(a.units_in_data) AS units_in_data,

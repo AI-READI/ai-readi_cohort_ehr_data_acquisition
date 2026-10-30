@@ -20,8 +20,12 @@ unit (or is marked unitless), a canonical unit, and a harmonized value.
   and running").
 - Original `measurement_concept_id`, `unit_concept_id` and
   `unit_source_value` are left untouched. A record's effective unit is
-  `COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id)`; after 1b
-  that's the same as `inferred_unit_concept_id`.
+  `COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0))`; after 1b
+  that's the same as `inferred_unit_concept_id`, except that 0 means no unit.
+  Following OMOP, `inferred_unit_concept_id` is 0 where a record has unit
+  text that maps to no unit (Part B's unitless, not_a_unit and
+  unmapped_string, and the same records with no numeric value, set in 1b)
+  and NULL where there is no unit text.
 
 Decision and rule tables (all in `hive_metastore.ehr_union_clean_metrics`):
 `measurement_concept_corrections`, `unit_concept_rules`, `unit_inference_range_decisions`, `unit_source_name_rules`,

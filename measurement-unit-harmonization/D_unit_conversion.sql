@@ -3,7 +3,7 @@
 -- Fills canonical_unit_concept_id, canonical_unit_value (its UCUM code),
 -- unit_conversion_method and harmonized_value_as_number for every numeric
 -- record with an effective unit
---   COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id).
+--   COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0)).
 -- Unitless records (harmonized = value already) and suspect_concept records
 -- are not touched.
 --
@@ -626,7 +626,7 @@ AND d.test_id = CASE WHEN COALESCE(t.harmonized_measurement_concept_id, 0) = 0
                      THEN concat('src:', t.measurement_source_value)
                      ELSE CAST(t.harmonized_measurement_concept_id AS STRING)
                 END
-AND d.unit_concept_id = COALESCE(NULLIF(t.unit_concept_id, 0), t.inferred_unit_concept_id)
+AND d.unit_concept_id = COALESCE(NULLIF(t.unit_concept_id, 0), NULLIF(t.inferred_unit_concept_id, 0))
 AND t.value_as_number IS NOT NULL
 AND COALESCE(t.unit_inference_method, '') <> 'suspect_concept'
 WHEN MATCHED THEN UPDATE SET
@@ -642,7 +642,7 @@ WHEN MATCHED THEN UPDATE SET
 -- 20a. Review: numeric records by harmonization status
 SELECT CASE WHEN canonical_unit_concept_id IS NOT NULL  THEN 'in canonical unit'
             WHEN harmonized_value_as_number IS NOT NULL THEN 'unitless'
-            WHEN COALESCE(NULLIF(unit_concept_id, 0), inferred_unit_concept_id) IS NOT NULL
+            WHEN COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0)) IS NOT NULL
                                                         THEN 'has unit, no conversion'
             ELSE 'no unit'
        END AS status,

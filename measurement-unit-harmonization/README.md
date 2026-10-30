@@ -174,7 +174,7 @@ each is empty for:
 |---|---|---|---|
 | `harmonized_measurement_concept_id` | bigint | The test: `measurement_concept_id`, or its correction ([above](#records-under-the-wrong-concept)); 0 where there is none | none |
 | `unit_inference_method` | string | How the unit was decided (table above) | none |
-| `inferred_unit_concept_id` | bigint | The record's unit: inferred, or copied from `unit_concept_id` | unitless, no unit |
+| `inferred_unit_concept_id` | bigint | The record's unit: inferred, or copied from `unit_concept_id`; 0 where the record has unit text that maps to no unit (OMOP's convention for an unmappable source unit) | unitless and no-unit records with no unit text |
 | `inferred_unit_source_value` | string | That unit's UCUM code | unitless, no unit |
 | `canonical_unit_concept_id` | bigint | The test's canonical unit, set where `harmonized_value_as_number` is in it | unitless, no unit, no conversion |
 | `canonical_unit_value` | string | The canonical unit's UCUM code | unitless, no unit, no conversion |
@@ -183,7 +183,8 @@ each is empty for:
 
 The 786,850 records with no numeric value get
 `harmonized_measurement_concept_id`, plus the method and inferred unit
-when they arrived with a unit concept; the last four columns stay empty. Check E3 confirms
+when they arrived with a unit concept (inferred unit 0 when they have unit
+text but no unit concept); the last four columns stay empty. Check E3 confirms
 that no numeric record with a unit is missing one of its columns.
 
 Every rule is a table in `ehr_union_clean_metrics` and every record carries

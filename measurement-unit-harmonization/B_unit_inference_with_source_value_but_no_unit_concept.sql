@@ -206,7 +206,10 @@ WHERE m.rule = 'unit' AND ru.concept_id IS NULL;
 
 -- ===== B2. Unit-string decisions. Last result: summary =====
 
--- 11. Decisions: one row per unit string that lacks a unit concept
+-- 11. Decisions: one row per unit string that lacks a unit concept.
+--     A string that maps to no unit (unitless, not_a_unit, unmapped_string)
+--     gets inferred unit 0, OMOP's "source unit that can't be mapped";
+--     NULL is for records with no unit text.
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_string_decisions AS
 WITH need AS (
   SELECT unit_source_value, harmonized_measurement_concept_id, COUNT(*) AS n
@@ -246,8 +249,8 @@ SELECT s.unit_source_value, s.n,
        END AS unit_inference_method,
        CASE
          WHEN m.rule = 'unit'    THEN mu.concept_id
-         WHEN m.rule IS NOT NULL THEN NULL
-         ELSE COALESCE(re.unit_concept_id, rc.unit_concept_id)
+         WHEN m.rule IS NOT NULL THEN 0
+         ELSE COALESCE(re.unit_concept_id, rc.unit_concept_id, 0)
        END AS inferred_unit_concept_id,
        m.note
 FROM s
