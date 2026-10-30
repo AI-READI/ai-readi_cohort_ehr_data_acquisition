@@ -205,20 +205,25 @@ list's.
      arrived; deduplicating is upstream's call.
    - Tidal volume setting: mL and mL/kg (labeled kg) under one concept
 3. **Canonical-unit judgment calls** (19f). Undecided:
-   - AI-READI's REDCap mapping (`_ai_readi_redcap_value_set_mapping_common.csv`
-     in the AI-READI DataElementMaps repo; Siggie keeps a copy in the
-     untracked `ref_files/`) gives a unit per test for about 50 tests. Where
-     it differs from ours: Na, K, Cl, total CO2 in mEq/L (ours mmol/L, same
-     numbers), AST/ALT/ALP in [iU]/L (equivalent to our [U]/L), urine
-     albumin mg/L. It has no temperature. Every test on it that's in the
-     EHR data is harmonized (F2). Asked Stephanie which labels she wants.
-   - C-peptide and insulin in the list (CSV lines 509-518): each unit row
-     sits under its own question. C-peptide's ng/L doesn't fit our data:
-     all 181 records under 3010084 arrived in ng/mL, median 2.74 (2.74 ng/L
-     would be far below any C-peptide level). Insulin's ng/mL can't be
-     checked: there are no records under its concept 3022466 (Insulin
-     [Mass/volume]); F3a found insulin under 3009413 and 3016244 (Insulin
-     [Units/volume]), in uIU/mL. Asked Stephanie whether these are typos.
+   - AI-READI's REDCap mapping
+     ([value-set-mapping-common](https://github.com/AI-READI/DataElementMaps/tree/main/redCapDataDictionaryWithExtension/value-set-mapping-common)
+     in DataElementMaps) gives a unit per test for about 50 tests. Use the
+     live version: the copy in the untracked `ref_files/` was refreshed on
+     2026-10-30, when the live one had changed C-peptide to ng/mL (line 514)
+     and urine albumin to mg/dL (line 613). Its
+     `scripts/unit_concept_lookup_extended.csv` lists the same units, one row
+     per REDCap field, with the map's line numbers; it's built for the
+     survey data, not the EHR data. Where the list differs from ours: Na, K,
+     Cl, total CO2 in mEq/L (ours mmol/L, same numbers), AST/ALT/ALP in
+     [iU]/L (equivalent to our [U]/L). It has no temperature. Every test on
+     it that's in the EHR data is harmonized (F2). Asked Stephanie which
+     labels she wants.
+   - Insulin in the list (CSV lines 517-518): ng/mL under 3022466 (Insulin
+     [Mass/volume]) can't be checked: there are no records under that
+     concept; F3a found insulin under 3009413 and 3016244 (Insulin
+     [Units/volume]), in uIU/mL. Asked Stephanie whether it's a typo.
+     (C-peptide's ng/L, the other half of that question, is now ng/mL
+     upstream and matches our 181 records, median 2.74.)
    - Real choices in the data: CRP mg/L vs mg/dL (51/49), testosterone ng/mL
      vs ng/dL (56/44), T3 ng/dL vs ng/mL, radiation dose cGy vs Gy, 24 h
      urine urea nitrogen g vs mg.
