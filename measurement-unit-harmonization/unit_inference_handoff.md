@@ -174,12 +174,50 @@ canonical unit (E2 checks for this).
 The last full run (Siggie's E_review_outputs.ipynb, 2026-10-28) had every
 check empty and every review matching its comment. The README, this file and the charts
 ([charts/make_charts.py](charts/make_charts.py) has the counts typed in)
-carry its counts. After a rerun, update all three from E.
+carry its counts. After a rerun, update all three from E. The two changes
+since (live REDCap map in F2; inferred unit 0 for unmappable unit text)
+haven't been rerun: expect E 20a unchanged and E3 empty.
 
-PR #3: Stephanie's five review comments are answered. Waiting on her
-answers to three questions: the REDCap labels and the C-peptide/insulin
-units (Not done, item 3), and keeping every test in scope, not only her
-list's.
+The work moved from Siggie's fork (PR #3) to a branch in
+AI-READI/ai-readi_cohort_ehr_data_acquisition, at Stephanie's request.
+
+Stephanie's decisions (2026-10-30):
+
+- **Scope:** keep every test. Tests on the REDCap list get the most careful
+  checks; their accuracy is never traded for more rows overall.
+- **Unit codes:** standard UCUM (our mmol/L, [iU]/L), not the list's mEq/L
+  and IU/L labels.
+- **Map version:** the latest. v1.8.4 is the last release that changed the
+  concept map, so `redcapsurveydb.unit_concept_lookup` (v1.8.4) is current.
+
+Agreed work, in order:
+
+1. **Validate Part A against plausibility limits.** Section U8 of
+   DataElementMaps'
+   [09_validate_units_and_value_ranges.sql](https://github.com/AI-READI/DataElementMaps/blob/main/redCapDataDictionaryWithExtension/value-set-mapping-common/scripts/09_validate_units_and_value_ranges.sql)
+   has limits per REDCap field: implausible (imp_lo/imp_hi) and clinically
+   extreme (ext_lo/ext_hi), in the list's units. It was written for the
+   survey data. Build a limits table keyed by EHR concept in Part A's
+   notebook (fields map to concepts through `target_concept_id` in
+   `scripts/unit_concept_lookup_extended.csv`), with a pointer to 09's
+   version. Check Part A's records on list tests: the value and the
+   reference range, in the record's inferred unit. An inferred unit that
+   makes them implausible is dropped (no unit), with a method saying why.
+   Records that arrived with a unit aren't touched. Extreme values are only
+   counted: EHR patients are sicker than survey participants.
+2. **Part B unit-text matching.** Trim and ignore case when comparing
+   unit_source_value, and map label variants to the standard UCUM concept
+   (never SNOMED). Example: the lookup's platelet label `x10E3/µL` (line 56)
+   and UCUM `10*3/uL` are both concept 8848. Where case changes the meaning
+   (`s` second vs `S` siemens, `h`/`H`, `mU`/`MU`), list the strings for
+   review instead of merging them.
+3. **Review of records with no concept that got a unit**, through the
+   source-name list (1,033 in A, 469 in C) or C's copying on `src:` test
+   ids. One row per source name and partner, with n, unit, method and
+   median, for Stephanie to sign off; rejected rows get no unit. The 09
+   limits can't check these, since they have no concept.
+4. **F2 reads `redcapsurveydb.unit_concept_lookup`** instead of its typed
+   copy of the list.
 
 ## Not done
 
@@ -211,23 +249,15 @@ list's.
 3. **Canonical-unit judgment calls** (19f). Undecided:
    - AI-READI's REDCap mapping
      ([value-set-mapping-common](https://github.com/AI-READI/DataElementMaps/tree/main/redCapDataDictionaryWithExtension/value-set-mapping-common)
-     in DataElementMaps) gives a unit per test for about 50 tests. Use the
-     live version: the copy in the untracked `ref_files/` was refreshed on
-     2026-10-30, when the live one had changed C-peptide to ng/mL (line 514)
-     and urine albumin to mg/dL (line 613). Its
-     `scripts/unit_concept_lookup_extended.csv` lists the same units, one row
-     per REDCap field, with the map's line numbers; it's built for the
-     survey data, not the EHR data. Where the list differs from ours: Na, K,
-     Cl, total CO2 in mEq/L (ours mmol/L, same numbers), AST/ALT/ALP in
-     [iU]/L (equivalent to our [U]/L). It has no temperature. Every test on
-     it that's in the EHR data is harmonized (F2). Asked Stephanie which
-     labels she wants.
-   - Insulin in the list (CSV lines 517-518): ng/mL under 3022466 (Insulin
-     [Mass/volume]) can't be checked: there are no records under that
-     concept; F3a found insulin under 3009413 and 3016244 (Insulin
-     [Units/volume]), in uIU/mL. Asked Stephanie whether it's a typo.
-     (C-peptide's ng/L, the other half of that question, is now ng/mL
-     upstream and matches our 181 records, median 2.74.)
+     in DataElementMaps) gives a unit per test for about 50 tests; always
+     read the live version. Every test on it that's in the EHR data is
+     harmonized (F2). Its labels differ from our UCUM codes for Na, K, Cl,
+     total CO2 (mEq/L; ours mmol/L, same numbers) and AST/ALT/ALP (IU/L;
+     ours [U]/L, equivalent); UCUM stays (Stephanie, 2026-10-30). Urine
+     albumin is mg/dL there; our canonical unit hasn't been checked against
+     it. Insulin's ng/mL is for the survey data (09's U5); EHR insulin is
+     under 3009413 and 3016244 (Insulin [Units/volume]) in uIU/mL, and
+     there are no records under the list's 3022466.
    - Real choices in the data: CRP mg/L vs mg/dL (51/49), testosterone ng/mL
      vs ng/dL (56/44), T3 ng/dL vs ng/mL, radiation dose cGy vs Gy, 24 h
      urine urea nitrogen g vs mg.
