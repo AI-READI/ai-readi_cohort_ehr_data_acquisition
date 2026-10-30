@@ -34,22 +34,40 @@ unchanged.
 
 ## How each record's unit was decided
 
+Records with no unit concept fell into three groups, each handled by its
+own notebook, run in order (A, then B, then C; D then converts every unit):
+
+- **A. No unit, but a reference range** (205,212). Mostly copied from labeled
+  records of the same test, accepted only if the medians agree within a factor
+  of 2 (which keeps 98 °F from being called Celsius); an exact reference-range
+  match is trusted as is.
+- **B. Unit text with no unit concept** (55,267). 223 distinct strings: 146
+  map to standard units (nine spellings of the eGFR unit alone; {ratio},
+  Index and S/CO among them), 1 is unitless, 18 are junk ("Possible",
+  "PharmD"), and 58 are left unmapped on purpose (log viral loads,
+  per-ejaculate counts).
+- **C. No unit, no reference range** (1,066,251), almost all flowsheet and
+  exam data from one partner. About 100 tests cover 97% of it, mostly with no
+  labeled records to copy from, so units come from rules on the test name
+  (end-tidal CO2 in mm[Hg], tidal volume in mL, pain scores in [score]).
+  C runs last because it uses A's and B's units as evidence.
+
 Every numeric record's `unit_inference_method` says how its unit was
-decided. Part is the group a record fell into (below).
+decided, and Part says which of the groups above it fell into.
 
 | Outcome | `unit_inference_method` | Part | How | Records |
 |---|---|---|---|---:|
 | Unit | copied_from_unit_concept_id | | Arrived with a unit concept; copied into the inferred columns | 5,721,737 |
 | Unit | explicit | C | Rule on the test name (end-tidal CO2 in mm[Hg], tidal volume in mL, pain and other scores in [score], pH) | 971,623 |
-| Unit | dataset_unit | A | Copied from labeled records of the same test, any partner | 157,290 |
+| Unit | dataset_unit | A | Copied from labeled records of the same test, any partner; medians must agree within a factor of 2 | 157,290 |
 | Unit | partner_unit, dataset_unit | C | Copied from labeled records of the same test, same partner first; medians must agree within a factor of 2 | 74,361 |
 | Unit | mapped_string | B | Unit text mapped by hand to a standard unit ({ratio}, Index and S/CO included) | 49,019 |
 | Unit | explicit | A | Set by hand per test (including pH, INR and ratios in {ratio}) | 22,917 |
-| Unit | range_match | A | Copied from labeled records of the same test, same partner and same reference range | 14,064 |
+| Unit | range_match | A | Copied from labeled records of the same test, same partner and same reference range; no median check | 14,064 |
 | Unit | source_name | A | No test concept; unit from the source test name | 1,033 |
 | Unit | source_name | C | No test concept; unit from the source test name | 469 |
 | Unit | value_split | C | Test holds two units; each record's unit set by its value (body temperature under 45 is °C, over 80 is °F) | 340 |
-| Unit | partner_unit | A | Copied from labeled records of the same test, same partner | 160 |
+| Unit | partner_unit | A | Copied from labeled records of the same test, same partner; medians must agree within a factor of 2 | 160 |
 | Unit | reused_mapping | B | Same unit text already maps to a unit elsewhere in the table | 16 |
 | Unitless | unitless | C | Rule on the test name (counts, Ct values, RAST class) | 14,784 |
 | Unitless | unitless | A | Specific gravity | 9,660 |
@@ -67,22 +85,6 @@ Unitless is only for quantities UCUM has no unit for. Ratios, pH,
 indexes, scores, fractions, multiples of the median and optical density
 have UCUM units (`{ratio}`, `pH`, `{index}`, `[score]`, `{fraction}`,
 `{MOM}`, `{ISR}`, `[OD'U]`), and get them.
-
-Records with no unit concept fell into three groups, handled in order:
-
-- **A. No unit, but a reference range** (205,212). Mostly copied from labeled
-  records of the same test, accepted only if the medians agree within a factor
-  of 2 (which keeps 98 °F from being called Celsius); an exact reference-range
-  match is trusted as is.
-- **B. Unit text with no unit concept** (55,267). 223 distinct strings: 146
-  map to standard units (nine spellings of the eGFR unit alone; {ratio},
-  Index and S/CO among them), 1 is unitless, 18 are junk ("Possible",
-  "PharmD"), and 58 are left unmapped on purpose (log viral loads,
-  per-ejaculate counts).
-- **C. No unit, no reference range** (1,066,251), almost all flowsheet and
-  exam data from one partner. About 100 tests cover 97% of it, mostly with no
-  labeled records to copy from, so units come from rules on the test name
-  (end-tidal CO2 in mm[Hg], tidal volume in mL, pain scores in [score]).
 
 ![Records without a unit concept, by what they got](charts/unit_assignment.png)
 
