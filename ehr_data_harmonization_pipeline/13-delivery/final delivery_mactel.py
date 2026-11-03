@@ -4,15 +4,16 @@ spark.sql("DROP DATABASE IF EXISTS ehr_union_mactel_release CASCADE")
 
 # COMMAND ----------
 
-# Replicate all tables from ehr_union_clean database into ehr_union__mactel_release database
+# Replicate all tables from ehr_union_clean database into ehr_union_mactel_release database
 spark.sql("CREATE DATABASE IF NOT EXISTS ehr_union_mactel_release")
 
-tables = spark.sql("SHOW TABLES IN ehr_union_clean").collect()
+tables = spark.sql("SHOW TABLES IN ehr_union_clean_mactel").collect()
+tables = [t for t in tables if not t.isTemporary and not t.tableName.startswith("_")]
 
 for table in tables:
     table_name = table.tableName
     print(f"Replicating table: {table_name}")
-    spark.sql(f"CREATE OR REPLACE TABLE ehr_union_mactel_release.{table_name} AS SELECT * FROM ehr_union_clean.{table_name}")
+    spark.sql(f"CREATE OR REPLACE TABLE ehr_union_mactel_release.{table_name} AS SELECT * FROM ehr_union_clean_mactel.{table_name}")
     print(f"  Done: {table_name}")
 
 print("\nAll tables replicated successfully.")
@@ -22,7 +23,7 @@ print("\nAll tables replicated successfully.")
 # MAGIC %sql
 # MAGIC -- OMOP CDM v5.3 - CDM_SOURCE Table
 # MAGIC
-# MAGIC CREATE or replace TABLE ehr_union_mactel_releasev.cdm_source (
+# MAGIC CREATE or replace TABLE ehr_union_mactel_release.cdm_source (
 # MAGIC     cdm_source_name                 VARCHAR(255)    NOT NULL,
 # MAGIC     cdm_source_abbreviation         VARCHAR(25),
 # MAGIC     cdm_holder                      VARCHAR(255),
@@ -49,28 +50,28 @@ print("\nAll tables replicated successfully.")
 # MAGIC     vocabulary_version
 # MAGIC )
 # MAGIC SELECT
-# MAGIC     'AI-READI participant longitudinal EHR dataset', --cdm_source_name
-# MAGIC     'AI-READI EHR', --cdm_source_abbreviation
-# MAGIC     'Bridge2ai-AI-READI', --cdm_holder
-# MAGIC     'AI-READI participants electronic health record data from the BRIDGE2AI-AI-READI participating sites', --source_description
-# MAGIC     'https://docs.aireadi.org/docs/3/about', --source_documentation_reference
-# MAGIC     'https://github.com/AI-READI/ai-readi_cohort_ehr_data_acquisition', --cdm_etl_reference
-# MAGIC     '2026-10-21', --source_release_date
-# MAGIC     '2026-10-21', --cdm_release_date
-# MAGIC     '5.3.1', --cdm_version
+# MAGIC     'AI-READI participant longitudinal EHR dataset', -- cdm_source_name
+# MAGIC     'AI-READI EHR', -- cdm_source_abbreviation
+# MAGIC     'AI-READI Consortium (NIH Bridge2AI)', -- cdm_holder
+# MAGIC     'Longitudinal electronic health record data for consented AI-READI participants from the Bridge2AI AI-READI data collection sites, covering 2014-2026.', -- source_description
+# MAGIC     'https://docs.aireadi.org', -- source_documentation_reference
+# MAGIC     'https://github.com/AI-READI/ai-readi_cohort_ehr_data_acquisition/releases/tag/v1.0', -- cdm_etl_reference
+# MAGIC     '2026-09-23', -- source_release_date
+# MAGIC     '2026-10-26', -- cdm_release_date
+# MAGIC     '5.3.1', -- cdm_version
 # MAGIC     (SELECT vocabulary_version FROM omop_vocab.vocabulary WHERE vocabulary_id = 'None'); --vocabulary_version
 
 # COMMAND ----------
 
 # Set up the configuration for accessing the second Azure Data Lake Storage container
 spark.conf.set(
-##### hashing for security reason
+  ######################hashing
 )
 spark.conf.set(
-##### hashing for security reason
+  ######################hashing
 )
 spark.conf.set(
-##### hashing for security reason
+  ######################hashing
 )
 
 # COMMAND ----------
@@ -78,7 +79,7 @@ spark.conf.set(
 from pyspark.sql.functions import col, lit
 import re
 
-output_base_path = "abfss://stage-one@fairhubproduction.dfs.core.windows.net/AI-READI/omop-pipeline/EHR/MACTEL/deliverable/"
+output_base_path = "abfss://stage-one@fairhubproduction.dfs.core.windows.net/AI-READI/omop-pipeline/EHR/MACTEL/deliverable_20261027_3/"
 
 tables = spark.sql("SHOW TABLES IN ehr_union_mactel_release").collect()
 # Added this filter line
@@ -129,5 +130,4 @@ print("\n" + "="*50)
 print("All tables exported successfully!")
 
 # COMMAND ----------
-
 
