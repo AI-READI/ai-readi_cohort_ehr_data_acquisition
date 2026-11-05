@@ -1,0 +1,49 @@
+priority,test_pattern,rule,unit,note
+1,(?i)case number|allele|tech id|patient id|collect (date|time)|identifier|^ISBT|^EKG impression$|^report$|^[.]$|^service comment$|^lab test requested$|^additional test information$|^course number$|^unit division$|^tube number$|^sample to use$|^custom time|^save specimen,not_a_quantity,,"codes, IDs, admin fields"
+2,(?i)[(]min[)],explicit,min,"sleep study: SpO2 < 90% (min), recording duration (min)"
+3,(?-i:AHI|RDI)|^ODI|(?i)apnea index|arousal index|plm index,explicit,/h,sleep study events per hour
+4,(?i)number of|.#]|^units ordered$|fractions delivered,no_ucum_unit,,counts
+5,(?i)bispectral index|angina index,explicit,{index},indexes
+6,(?i)score|scale|coma|morse fall|withdrawal assessment|physical status classification|train of four|NRS_2002|activities of daily living|abbreviated mental test,explicit,[score],scores and scales
+7,(?i)^pain|pain (level|intensity|rating|severity),explicit,[score],pain scales
+8,(?i)mom$,explicit,{MOM},multiples of the median
+9,(?i)ct value,no_ucum_unit,,Ct values
+10,(?i)cup disc ratio|^E/E. ratio|^albumin/globulin,explicit,{ratio},ratios
+11,(?i)^end tidal carbon dioxide|mean arterial pressure|^central venous pressure|intraocular pressure|^treadmill BP,explicit,mm[Hg],"ETCO2, MAP, CVP, IOP"
+12,(?i)airway pressure|inspiratory pressure|^PEEP,explicit,cm[H2O],airway pressures
+13,(?i)^expiratory tidal volume|^fluid (output|intake)|^parenteral fluid input,explicit,mL,tidal volume; fluid totals
+14,(?i)^respiratory rate$|(treadmill|infusion|custom) HR|^pulse rate,explicit,/min,
+15,(?i)^body surface area,explicit,m2,
+16,(?i)^(R-R|Q-T|P-R|PP) interval|^QRS duration,explicit,ms,
+17,(?i)^(P wave|QRS|T wave) axis,explicit,deg,
+18,(?i)corneal thickness,explicit,um,
+19,(?i)margin reflex distance|levator lift|exophthalmometry|scleral show,explicit,mm,
+20,(?i)^forced vital capacity .volume.|^residual volume --pre,explicit,L,
+21,(?i)^gas flow FEV|^FEF25-75-Pre$,explicit,L/s,
+22,(?i)^diffusion capacity.carbon monoxide$,explicit,mL/min/mm[Hg],
+23,(?i)impedance,explicit,Ohm,
+24,(?i)intrinsic amplitude,explicit,mV,
+25,(?i)threshold amplitude|^battery voltage,explicit,V,
+26,(?i)^sleep latency|^total sleep time|^total minutes walked,explicit,min,
+27,(?i)^elapsed days|^days sensor worn,explicit,d,
+28,(?i)predicted|%pred|percent|%|spo2|^oximetry|^infusion O2|/leukocytes in blood,explicit,%,
+29,(?i)mg/dl$,explicit,mg/dL,
+30,"(?i)^body temperature$|^protein/creatinine ratio, exte",value_split,,one group holds two units: Cel and [degF]; mg/mg and mg/g
+31,"(?i)^ph[ ,-]",explicit,pH,
+32,(?i)saturation fraction,explicit,{fraction},
+33,(?i)^cholesterol/HDL ratio|^apolipoprotein B/apolipoprotein A|^dRVVT|^TID$,explicit,{ratio},"total/HDL, apoB/apoA, dRVVT ratio, transient ischemic dilation"
+34,(?i)^hepatitis B virus surface Ab .units/volume.,explicit,10*-3.[iU]/mL,labeled records are mIU/mL; most values near 0
+35,"(?i)^tacrolimus, external",explicit,ng/mL,
+36,"(?i)^mycophenolic acid, external",explicit,ug/mL,
+37,(?i)^(erythrocytes|leukocytes) .#/area. in urine sediment,explicit,/[HPF],values capped at 50
+38,(?i)^battery remaining longevity,explicit,mo,values are months; labeled records are years
+39,(?i)^creatinine clearance,explicit,mL/min,
+40,(?i)^calcium/24 hr,explicit,mg/(24.h),
+41,"(?i)^immunoglobulin G, external",explicit,mg/dL,
+42,(?i)^cortisol stimulation interval,explicit,min,
+43,(?i)^glucose tolerance dose info,explicit,g,75 g dose
+44,"(?i)^1,25 dihydroxy vitamin d",explicit,pg/mL,
+45,(?i)^systemic vascular resistance index$,explicit,dyn.s/cm5/m2,normal 1970-2390
+46,(?i)^systemic vascular resistance$,explicit,dyn.sec/cm5,normal 800-1200
+47,(?i)radioallergosorbent,no_ucum_unit,,RAST class 0-6
+48,(?i)^residual volume/total capacity,value_split,,RV/TLC % paired with TLC in L (15f)
