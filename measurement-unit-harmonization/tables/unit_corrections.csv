@@ -1,0 +1,39 @@
+labeled_unit,on_tests,partner_specific,decision,corrected_unit,source,rationale
+%,(?i)^MCHC,True,unit,g/dL,judgment,"MCHC values fit g/dL, not %"
+10*3/uL,^Erythrocytes .#/volume. in Blood,True,unit,10*6/uL,judgment,RBC values fit millions per uL
+H,,False,unit,h,judgment,UCUM H is henry; used for hours
+L,(?i)minute volume,False,unit,L/min,judgment,minute volume is liters per minute
+L/(24.h),(?i)^volume,False,unit,L,judgment,"a urine collection's volume, not a rate"
+S,,False,unit,s,judgment,UCUM S is siemens; used for seconds
+[U]/mL,(?i)^mycoplasma,False,withheld,,judgment,no unit makes the values fit
+[degC],,False,unit,Cel,maps_to,not standard UCUM (8653 degree Celsius); OMOP maps it to Cel
+[foz_us],(?i)weight,False,unit,[oz_av],judgment,fluid ounce on a weight: avoirdupois ounce
+[lb_us],^Body weight$,True,unit,[oz_av],judgment,values fit body weights as ounces; another partner's lb records match its kg (20c)
+[{index'value}],,False,unit,{signal}/[{CO'ratio}],maps_to,not standard UCUM (8608 index value); OMOP maps it to {signal}/[{CO'ratio}]
+deg,(?i)temperature,True,unit,[degF],judgment,temperature values fit Fahrenheit
+g/[dose],(?i)24 hour urine,False,unit,g/(24.h),judgment,per collection on a 24 hour urine test: per 24 hours
+kg,(?i)^tidal volume,True,unit,mL/kg,judgment,tidal volume values fit mL/kg
+l,,False,unit,L,maps_to,not standard UCUM (9540 liter [volume]); OMOP maps it to L
+l,(?i)minute volume,False,unit,L/min,judgment,minute volume is liters per minute
+m2,(?i)body mass index,True,unit,kg/m2,judgment,BMI values fit kg/m2
+mL/(24.h),(?i)^volume,False,unit,mL,judgment,"a urine collection's volume, not a rate"
+mL/min,(?i)glomerular filtration|GFR,True,unit,mL/min/(173.10*-2.m2),judgment,eGFR labeled mL/min; medians match eGFR in mL/min/1.73m2
+mL/min/1.73.m2,,False,unit,mL/min/(173.10*-2.m2),maps_to,not standard UCUM (9117 milliliter per minute per 1.73 square meter); OMOP maps it to mL/min/(173.10*-2.m2)
+mg/dL,"^Albumin, External$",True,unit,g/dL,judgment,albumin values fit g/dL
+mg/dL,^Carcinoembryonic Ag,True,unit,ng/mL,judgment,CEA values fit ng/mL
+mg/dL,^Cholesterol.total/Cholesterol in HDL,True,unit,{ratio},judgment,matches same-day total/HDL (F4b); corrected from 3023884
+mg/dL,"^Sodium, External$",True,unit,mmol/L,judgment,sodium values fit mmol/L
+mm3,,False,unit,/mm3,judgment,cubic millimeter on cell counts: per mm3
+mm[Hg],(?i)oxygen saturation,True,unit,%,judgment,"pulse oximetry reports only %, so not PaO2"
+ng/dL,^Glucose$,True,unit,mg/dL,judgment,glucose values fit mg/dL
+nmol/mL,^Sex hormone binding globulin,True,unit,nmol/L,judgment,SHBG values fit nmol/L
+s/{CO},,False,unit,{signal}/[{CO'ratio}],maps_to,not standard UCUM (8644 Seconds per CO); OMOP maps it to {signal}/[{CO'ratio}]
+u,,False,unit,[U],judgment,UCUM u is atomic mass unit; used for [U] on an antibody test
+ug/L,^Creatinine .Mass/volume. in Urine$,False,withheld,,judgment,no unit makes the values fit
+ug/dL,^Testosterone .Mass,True,unit,ng/mL,judgment,testosterone values fit ng/mL
+{log},,False,review,,maps_to,not standard UCUM (8492 Log); OMOP maps it to no standard UCUM unit
+{sau},,False,unit,[GPI'IgA'U],maps_to,not standard UCUM (8500 SAU); OMOP maps it to [GPI'IgA'U]
+{sgu},,False,unit,[GPI'IgM'U],maps_to,not standard UCUM (8501 SGU); OMOP maps it to [GPI'IgM'U]
+{sgu},(?i)^beta 2 glycoprotein 1 IgG,False,unit,[GPI'IgG'U],judgment,SGU is the IgG unit; every record is on the IgG test; OMOP maps it to the IgM unit
+{smu},,False,unit,[GPI'IgG'U],maps_to,not standard UCUM (8502 SMU); OMOP maps it to [GPI'IgG'U]
+{smu},(?i)^beta 2 glycoprotein 1 IgM,False,unit,[GPI'IgM'U],judgment,SMU is the IgM unit; every record is on the IgM test; OMOP maps it to the IgG unit

@@ -1,0 +1,106 @@
+unit_text,unit,rationale
+% donor,%,"percent, with what it is a percent of"
+% fat,%,"percent, with what it is a percent of"
+% Inhibition,%,"percent, with what it is a percent of"
+% Lymphs,%,"percent, with what it is a percent of"
+% normal,%,"percent, with what it is a percent of"
+% of CD19,%,"percent, with what it is a percent of"
+%PCV,%,percent packed cell volume (hematocrit)
+'C,Cel,degrees Celsius
+[lb_av],[lb_us],avoirdupois pound; OMOP's pound concept is [lb_us]
+A/G Ratio,{ratio},albumin/globulin ratio: a ratio
+APL,[APL'U],IgA phospholipid units (cardiolipin IgA)
+APL U/mL,[APL'U]/mL,IgA phospholipid units per mL
+APS,[APS'U],IgA phosphatidylserine units
+ATP ng/mL,ng/mL,ng/mL with the analyte (ATP) in front
+bil/L,10*9/L,billion per liter
+BPM,/min,as bpm: beats per minute
+bpm,/min,beats per minute
+cell/uL,/uL,cells per uL
+cGray,cGy,centigray
+cm/sec,cm/s,spelling of cm/s
+cmH2O,cm[H2O],spelling of cm[H2O]
+cp/mL,{copies}/mL,abbreviation of copies/mL
+days,d,days
+Degrees,deg,as degrees: degrees of angle (EKG axes)
+degrees,deg,degrees of angle (EKG axes)
+dynes-sec/cm5/m2,dyn.s/cm5/m2,spelling of the SVR index unit
+E.U./dL,[EU]/dL,Ehrlich units per dL (urobilinogen)
+EHRLICH UNITS,[EU]/dL,"Ehrlich units (urobilinogen, reported per dL)"
+EU/dL (mg/dL),[EU]/dL,Ehrlich units per dL (urobilinogen)
+ft,[ft_i],abbreviation of foot; UCUM foot is [ft_i]
+g/24 hr,g/(24.h),spelling of g/(24.h)
+g/24hr,g/(24.h),spelling of g/(24.h)
+GPL U/mL,[GPL'U]/mL,IgG phospholipid units per mL
+GPS,[GPS'U],IgG phosphatidylserine units
+Gray,Gy,gray
+Gy (RBE),Gy,RBE-weighted dose in gray
+IU gamma IF/mL,[iU]/mL,international units of interferon gamma per mL (QuantiFERON)
+k[IU]/L,10*3.[iU]/L,kilo international units per liter
+L/sec,L/s,spelling of L/s
+lbs,[lb_us],abbreviation of pounds; OMOP's pound concept is [lb_us]
+LEU/uL,/uL,as Leu/uL: leukocytes per uL (urine)
+Leu/uL,/uL,leukocytes per uL (urine)
+liter/min/m2,L/min/m2,spelling of L/min/m2 (cardiac index)
+liters/day,L/(24.h),liters per day
+m/m/1.73,mL/min/(173.10*-2.m2),abbreviation of the eGFR unit mL/min/1.73m2
+M/mcl,10*6/uL,million per microliter
+mcg/24 h,ug/(24.h),mcg is microgram; spelling of ug/(24.h)
+mcg/mg,ug/mg,mcg is microgram (ug)
+mcg/mL FEU,ug{FEU}/mL,mcg is microgram; FEU as in ug{FEU}/mL (D-dimer)
+meq/(24.h),10*-3.eq/(24.h),mEq per 24 hours
+meq/24 hr,10*-3.eq/(24.h),mEq per 24 hours
+meq/day,10*-3.eq/(24.h),mEq per day
+METS,[MET],metabolic equivalents
+mg/24hr,mg/(24.h),spelling of mg/(24.h)
+mg/dL:,mg/dL,mg/dL with a trailing colon
+mil sperm/mL,10*6/mL,million sperm per mL
+million/mL,10*6/mL,million per mL
+Minutes,min,as minutes: minutes
+minutes,min,minutes
+mL/24 hr,mL/(24.h),spelling of mL/(24.h)
+mL/beat,mL/{hb},mL per heartbeat (stroke volume); UCUM spells it mL/{hb}
+mL/hr,mL/h,spelling of mL/h
+mL/min/1.72m*2,mL/min/(173.10*-2.m2),typo for the eGFR unit mL/min/1.73m2
+"mL/min/1.73,2",mL/min/(173.10*-2.m2),typo for the eGFR unit mL/min/1.73m2
+mL/min/1.73_m2,mL/min/(173.10*-2.m2),"eGFR unit, mL/min per 1.73 m2"
+mL/min/1.73m²,mL/min/(173.10*-2.m2),"eGFR unit, mL/min per 1.73 m2"
+mL/min/173m2,mL/min/(173.10*-2.m2),typo for the eGFR unit mL/min/1.73m2
+ml/min/mmHg,mL/min/mm[Hg],spelling of mL/min/mm[Hg] (DLCO)
+mL/min/{1.73_m2},mL/min/(173.10*-2.m2),"eGFR unit, mL/min per 1.73 m2"
+mmol/24 h,mmol/(24.h),spelling of mmol/(24.h)
+mmol/24 hr,mmol/(24.h),spelling of mmol/(24.h)
+mmol/g creat,mmol/g{creat},spelling of mmol/g{creat}
+Month(s),mo,months
+mOsm/K,mosm/kg,mOsm/kg cut short
+mOsmol/kg,mosm/kg,spelling of mosm/kg
+MPL U/mL,[MPL'U]/mL,IgM phospholipid units per mL
+MPS,[MPS'U],IgM phosphatidylserine units
+mWq/L,10*-3.eq/L,typo for mEq/L
+ng/mL RBC,ng/mL,ng/mL with the specimen (RBC) after
+nM BCE/mM Creat,nmol{BColl}eq/mmol{creat},nmol bone collagen equivalents per mmol creatinine
+nmol{BCE}/mmol{creat},nmol{BColl}eq/mmol{creat},bone collagen equivalents per creatinine; OMOP spells it nmol{BColl}eq/mmol{creat}
+OD,[OD'U],optical density
+Ohms,Ohm,plural of Ohm
+PBPM,/min,pulse beats per minute
+ppm,[ppm],parts per million; UCUM spells it [ppm]
+S/CO,{signal}/[{CO'ratio}],signal to cutoff ratio
+TSI Index,{index},thyroid stimulating immunoglobulin index
+U,[U],arbitrary/enzyme unit; OMOP spells it [U]
+U/g{Hb},[U]/g{HGB},units per gram hemoglobin; OMOP spells it [U]/g{HGB}
+ug/24 hr,ug/(24.h),spelling of ug/(24.h)
+ug/g creat,ug/g{creat},spelling of ug/g{creat}
+UI/L,[iU]/L,"international units per liter, French word order"
+UI/mL,[iU]/mL,"international units per mL, French word order"
+umol/g CRT,umol/g{creat},CRT is creatinine; spelling of umol/g{creat}
+Unit%,%,percent (pulse oximetry)
+VOL%,%,volume percent
+weeks,wk,weeks
+X 10E3/mm3,10*3/uL,"thousand per mm3, which is per uL"
+X 10E6/mm3,10*6/mm3,million per mm3
+years,a,years; UCUM year is a
+yr,a,abbreviation of year; UCUM year is a
+{Ehrlich'U},[EU]/dL,"Ehrlich units (urobilinogen, reported per dL)"
+{index_val},{index},an index value
+{Log_copies}/mL,lg({copies})/mL,log copies per mL; UCUM spells it lg({copies})/mL
+{Log_IU}/mL,lg([iU])/mL,log international units per mL; UCUM spells it lg([iU])/mL

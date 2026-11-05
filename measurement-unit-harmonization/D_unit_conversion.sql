@@ -2,9 +2,12 @@
 -- Unit inference, Part D: conversion to a canonical unit per test.
 -- Fills canonical_unit_concept_id, canonical_unit_value (its UCUM code),
 -- unit_conversion_method and harmonized_value_as_number for every numeric
--- record with an effective unit
---   COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0)).
--- Unitless records (harmonized = value already) and suspect_concept records
+-- record with a unit: inferred_unit_concept_id, 0 read as none. Cell 17d
+-- first writes unit_mapping's corrections into it (Part A, 1i): units
+-- that are wrong for some records (S used for seconds, one partner's
+-- "[lb_us]" weights that are ounces) become the unit the records are
+-- really in, or none. The rest of this part picks canonical units and converts.
+-- no_ucum_unit records (harmonized = value already) and suspect_concept records
 -- are not touched.
 --
 -- A "test" is the harmonized measurement concept (Part A, cell 1d); for
@@ -20,24 +23,28 @@
 --                  g/L <-> mol/L by molar mass, eq/L <-> mol/L by charge
 --                  (so mEq/L = mmol/L for monovalent ions, 0.5 for Ca, Mg).
 --                  HbA1c % <-> mmol/mol is an affine bridge.
---   unit_relabel_rules  units whose label is wrong (mis-coded, or values
---                  clearly in another unit): convert as treat_as_code instead.
---                  Rules based on medians are limited to the partners they
---                  were seen in.
 --   canonical unit the most common unit for the test (counting equivalent
 --                  codes together, across partners), unless
 --                  canonical_unit_rules says otherwise.
 -- Conversion: canonical = slope * value_as_number + intercept, per
 -- (partner, test, unit), in unit_conversion_decisions.
--- Methods written: identity, same_base, analyte_bridge, no_conversion,
--- blocked (relabeled_as says when a relabel rule applied).
+-- Methods written: identity, same_base, analyte_bridge, no_conversion.
 -- canonical_unit_concept_id and canonical_unit_value are set only where
 -- harmonized_value_as_number is, so a non-null harmonized value is always in
 -- canonical_unit_concept_id. unit_conversion_method is set on every record
--- the apply matches, including no_conversion and blocked.
+-- the apply matches, including no_conversion.
 --
--- Run after Parts A, B and C, which assign the units converted here (their
--- applies also clear this part's columns on their records). Run every cell in order; cells that end in a SELECT show a
+-- Plausibility: Part 0 loads the AI-READI REDCap list from
+-- DataElementMaps (the value-set mapping, the unit lookup and the limits in
+-- 09_validate_units_and_value_ranges.sql) into redcap_list_tests, one row
+-- per OMOP concept; 19g converts the limits to each test's canonical unit. Cell 20 sets
+-- value_plausibility on records of those tests (implausible, extreme,
+-- plausible) without changing them; 19i lists groups whose median is
+-- implausible, which means a wrong unit rather than bad values.
+--
+-- Run after Parts 0, A, B and C: A-C assign the units converted here (their
+-- applies also clear this part's columns on their records), and 0 loads
+-- the list. Run every cell in order; cells that end in a SELECT show a
 -- result, the others build tables.
 
 
@@ -170,6 +177,7 @@ FROM VALUES
   ('{MOM}',            'MOM',     1,             0, 'multiple of the median'),
   ('{ISR}',            'ISR',     1,             0, 'immune status ratio'),
   ('[OD\'U]',          'OD',      1,             0, 'optical density'),
+  ('{signal}/[{CO\'ratio}]', 'signal to cutoff', 1, 0, 'signal to cutoff'),
   -- enzyme and international units ([iU] = [U])
   ('[iU]/L',           'U/L',     1,             0, NULL),
   ('[U]/L',            'U/L',     1,             0, 'same as [iU]/L'),
@@ -253,81 +261,122 @@ SELECT analyte, to_base, from_base, 1 / slope, -intercept / slope FROM one_way;
 --      tests each rule hits. Everything else gets its most common unit.
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.canonical_unit_rules AS
 SELECT * FROM VALUES
-  ('^Body weight$',              'kg',        NULL),
+  ('^(Body weight|PR Maternal Weight|NASH Weight, lbs)$', 'kg', 'the last two: no concept, mostly [lb_us]'),
   ('^Body height$',              'cm',        NULL),
   ('^Body temperature$',         'Cel',       NULL),
   ('^Hemoglobin A1c/Hemoglobin.total in Blood$', '%', NULL),
-  ('^Protein .Mass/time. in 24 hour Urine$', 'mg/(24.h)', 'most common was mg/dL')
+  ('^Protein .Mass/time. in 24 hour Urine$', 'mg/(24.h)', 'most common was mg/dL'),
+  ('^Albumin .Mass/volume. in Urine$', 'mg/dL', 'the REDCap list\'s unit; most common was mg/L')
 AS t(test_pattern, unit_code, note);
 
--- 17d. Relabels: convert unit_code as if it were treat_as_code, on tests
---      whose name matches test_pattern (NULL = every test) and, for the
---      partner-specific rules at the end, only for data_partner_id. A
---      partner rule wins over one with a pattern, and that over one with
---      neither. treat_as_code NULL = don't convert.
---      Rules based on a code's meaning apply to every partner. Rules based
---      on medians apply only to the partners whose medians showed it, so a
---      new partner's records in that unit are not relabeled; they show up in
---      19d or 19e instead.
-CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_relabel_rules AS
-SELECT *, CAST(NULL AS INT) AS data_partner_id FROM VALUES
-  -- mis-coded units
-  (NULL,                        'S',        's',        'UCUM S is siemens; used for seconds'),
-  (NULL,                        'H',        'h',        'UCUM H is henry; used for hours'),
-  (NULL,                        'l',        'L',        NULL),
-  (NULL,                        'mm3',      '/mm3',     'cell counts'),
-  (NULL,                        '[degC]',   'Cel',      'not a UCUM code'),
-  (NULL,                        'mL/min/1.73.m2', 'mL/min/(173.10*-2.m2)', 'not a UCUM code'),
-  ('(?i)weight',                '[foz_us]', '[oz_av]',  'fluid ounce on weights: avoirdupois ounce'),
-  ('(?i)minute volume',         'L',        'L/min',    NULL),
-  ('(?i)minute volume',         'l',        'L/min',    NULL),
-  ('(?i)^volume',               'mL/(24.h)', 'mL',      'urine volumes'),
-  ('(?i)^volume',               'L/(24.h)', 'L',        'urine volumes'),
-  ('(?i)24 hour urine',         'g/[dose]', 'g/(24.h)', 'per collection'),
-  -- don't convert: no relabel makes the values fit
-  ('(?i)^mycoplasma',           '[U]/mL',   NULL,       'median 770 vs 0.27 [U]/L'),
-  ('^Creatinine .Mass/volume. in Urine$', 'ug/L', NULL, 'median 2.5')
-AS t(test_pattern, unit_code, treat_as_code, note)
-UNION ALL
--- values plainly in another unit, for the partners whose 19d/19e medians
--- showed it; other partners' records in the unit are left as labeled
-SELECT * FROM VALUES
-  ('^Body weight$',             '[lb_us]',  '[oz_av]',  'median 2847 (80.7 kg as ounces); 8469 lb is fine (20c)', 2084),
-  ('(?i)temperature',           'deg',      '[degF]',   'median 97.8', 8469),
-  ('(?i)body mass index',       'm2',       'kg/m2',    'median 32.5', 8469),
-  ('(?i)glomerular filtration|GFR', 'mL/min', 'mL/min/(173.10*-2.m2)', 'medians match eGFR', 2084),
-  ('(?i)glomerular filtration|GFR', 'mL/min', 'mL/min/(173.10*-2.m2)', 'medians match eGFR', 3058),
-  ('(?i)^MCHC',                 '%',        'g/dL',     'median 33.6', 2084),
-  ('(?i)oxygen saturation',     'mm[Hg]',   '%',        'median 92; pulse oximetry reports only %, so not PaO2', 8469),
-  ('^Erythrocytes .#/volume. in Blood', '10*3/uL', '10*6/uL', 'median 3.82', 3058),
-  ('(?i)^tidal volume',         'kg',       'mL/kg',    'median 6.4', 8469),
-  ('^Carcinoembryonic Ag',      'mg/dL',    'ng/mL',    'median 0.86', 3058),
-  ('^Sex hormone binding globulin', 'nmol/mL', 'nmol/L', 'median 29.5', 8469),
-  ('^Testosterone .Mass',       'ug/dL',    'ng/mL',    'median 6.8', 2084),
-  ('^Glucose$',                 'ng/dL',    'mg/dL',    'value 151', 3058),
-  ('^Albumin, External$',       'mg/dL',    'g/dL',     'value 3.9', 3058),
-  ('^Sodium, External$',        'mg/dL',    'mmol/L',   'value 141', 3058),
-  ('^Cholesterol.total/Cholesterol in HDL', 'mg/dL', '{ratio}', 'value 4.0, same-day total/HDL 4.03 (F4b); corrected from 3023884', 3058)
-AS t(test_pattern, unit_code, treat_as_code, note, data_partner_id);
+-- COMMAND ----------
+-- ===== D1b. Corrections =====
 
+-- 17d. Write unit_mapping's corrections (Part A, 1i) into the table: the
+--      corrected unit into inferred_unit_concept_id and _source_value (0
+--      and NULL where the correction leaves no unit), the code it replaced
+--      into unit_corrected_from. Part D's columns are cleared on the
+--      records changed; cell 20 fills them. Rerunnable: unit_correction_keys
+--      corrects from unit_corrected_from, so a rerun matches the values
+--      already written and changes nothing.
+--      Then fills the correction rows' evidence in unit_mapping, now that
+--      A-C have set every unit: n and tests (the numeric records each row
+--      decided), median (their values, as recorded) and test_median (the
+--      top test's records that arrived in the target unit). A correction
+--      changes the label, not the value, so median and test_median are close
+--      when it is right.
+MERGE INTO hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+USING hive_metastore.ehr_union_clean_metrics.unit_correction_keys c
+ON  c.data_partner_id <=> t.data_partner_id
+AND c.test_id <=> CASE WHEN COALESCE(t.harmonized_measurement_concept_id, 0) = 0
+                       THEN concat('src:', t.measurement_source_value)
+                       ELSE CAST(t.harmonized_measurement_concept_id AS STRING)
+                  END
+AND c.from_code = COALESCE(t.unit_corrected_from, t.inferred_unit_source_value)
+AND (t.unit_corrected_from IS NOT NULL OR COALESCE(t.inferred_unit_concept_id, 0) <> 0)
+AND (t.unit_corrected_from IS NULL
+     OR t.inferred_unit_concept_id IS DISTINCT FROM COALESCE(c.unit_concept_id, 0))
+WHEN MATCHED THEN UPDATE SET
+  t.inferred_unit_concept_id   = COALESCE(c.unit_concept_id, 0),
+  t.inferred_unit_source_value = c.ucum_code,
+  t.unit_corrected_from        = c.from_code,
+  t.canonical_unit_concept_id  = NULL,
+  t.canonical_unit_value       = NULL,
+  t.unit_conversion_method     = NULL,
+  t.value_plausibility         = NULL,
+  t.harmonized_value_as_number = NULL;
+
+UPDATE hive_metastore.ehr_union_clean_metrics.unit_mapping
+SET n = NULL, tests = NULL, median = NULL, test_median = NULL
+WHERE kind = 'correction';
+
+MERGE INTO hive_metastore.ehr_union_clean_metrics.unit_mapping m
+USING (
+  WITH r AS (
+    SELECT c.from_code AS unit_code, c.rule_test_pattern AS test_pattern,
+           c.rule_data_partner_id AS data_partner_id,
+           k.test_id, COALESCE(k.test_name, k.test_id, '(no test name)') AS test_name, k.value_as_number
+    FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
+    JOIN hive_metastore.ehr_union_clean_metrics.unit_correction_keys c
+      ON  c.data_partner_id <=> k.data_partner_id
+      AND c.test_id <=> k.test_id
+      AND c.from_code = k.correction_from_code
+  ),
+  per_test AS (
+    SELECT unit_code, test_pattern, data_partner_id, test_id, test_name, COUNT(*) AS n
+    FROM r GROUP BY 1, 2, 3, 4, 5
+  ),
+  ev AS (
+    SELECT unit_code, test_pattern, data_partner_id, SUM(n) AS n,
+           max_by(test_id, struct(n, test_name, test_id)) AS top_test_id,
+           array_join(transform(slice(sort_array(collect_list(struct(n, test_name)), false), 1, 5),
+                                x -> concat(x.test_name, ' (', CAST(x.n AS STRING), ')')), '; ') AS tests
+    FROM per_test GROUP BY 1, 2, 3
+  ),
+  med AS (
+    SELECT unit_code, test_pattern, data_partner_id, percentile_approx(value_as_number, 0.5) AS median
+    FROM r GROUP BY 1, 2, 3
+  ),
+  tm AS (
+    SELECT e.unit_code, e.test_pattern, e.data_partner_id,
+           percentile_approx(k.value_as_number, 0.5) AS test_median
+    FROM ev e
+    JOIN hive_metastore.ehr_union_clean_metrics.unit_mapping um
+      ON  um.kind = 'correction'
+      AND um.unit_code = e.unit_code
+      AND um.test_pattern <=> e.test_pattern
+      AND um.data_partner_id <=> e.data_partner_id
+    JOIN hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
+      ON  k.test_id = e.top_test_id
+      AND k.effective_unit_code = um.ucum_code
+      AND COALESCE(k.unit_concept_id, 0) <> 0
+      AND k.correction_from_code IS NULL
+    GROUP BY 1, 2, 3
+  )
+  SELECT e.unit_code, e.test_pattern, e.data_partner_id, e.n, e.tests, d.median, tm.test_median
+  FROM ev e
+  JOIN med d
+    ON d.unit_code = e.unit_code AND d.test_pattern <=> e.test_pattern AND d.data_partner_id <=> e.data_partner_id
+  LEFT JOIN tm
+    ON tm.unit_code = e.unit_code AND tm.test_pattern <=> e.test_pattern AND tm.data_partner_id <=> e.data_partner_id
+) s
+ON  m.kind = 'correction'
+AND m.unit_code = s.unit_code
+AND m.test_pattern <=> s.test_pattern
+AND m.data_partner_id <=> s.data_partner_id
+WHEN MATCHED THEN UPDATE SET
+  m.n = s.n, m.tests = s.tests, m.median = s.median, m.test_median = s.test_median;
 
 -- COMMAND ----------
 -- 17e. CHECK (should return no rows): bad or duplicate codes, duplicate bridges.
---      Paste any rows this returns; I'll correct them.
 WITH codes AS (
   SELECT 'unit_factors' AS src, unit_code FROM hive_metastore.ehr_union_clean_metrics.unit_factors
   UNION ALL
   SELECT 'canonical_unit_rules', unit_code FROM hive_metastore.ehr_union_clean_metrics.canonical_unit_rules
-  UNION ALL
-  SELECT 'unit_relabel_rules', treat_as_code FROM hive_metastore.ehr_union_clean_metrics.unit_relabel_rules
-  WHERE treat_as_code IS NOT NULL
 )
 SELECT concat(c.src, ': not a UCUM code') AS problem, c.unit_code AS item
 FROM codes c
-LEFT JOIN omop_vocab.concept ru
-  ON  ru.vocabulary_id = 'UCUM'
-  AND ru.concept_code = c.unit_code
-  AND ru.invalid_reason IS NULL
+LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = c.unit_code
 WHERE ru.concept_id IS NULL
 UNION ALL
 SELECT 'unit_factors: duplicate code', unit_code
@@ -340,25 +389,33 @@ GROUP BY analyte, from_base, to_base HAVING COUNT(*) > 1;
 
 
 -- COMMAND ----------
+-- 17f. Review: every correction row (Part A, 1i), with the records it
+--      decided (17d). ratio = median / test_median: near 1 when the
+--      records look like the test's records already in the target unit.
+--      maps_to rows are OMOP's Maps to for an arrived unit that isn't
+--      standard UCUM; a wrong one gets a judgment row in 1g. Rows with no
+--      n matched no numeric records.
+SELECT unit_code, test_pattern, data_partner_id, decision, ucum_code, source, n, tests,
+       median, test_median, round(median / NULLIF(test_median, 0), 2) AS ratio,
+       rationale, candidates
+FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
+WHERE kind = 'correction'
+ORDER BY n DESC NULLS LAST, unit_code;
+
+
+-- COMMAND ----------
 -- ===== D2. Tests and their units =====
 
--- 18. Keyed view measurement_unit_keyed: created in Part A (cell 1f).
+-- 18. Keyed view measurement_unit_keyed: created in Part A (cell 1j).
 
 -- 18a. One row per (partner, test, effective unit)
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_test_units AS
-SELECT k.data_partner_id, k.test_id,
-       COALESCE(mc.concept_name, substr(k.test_id, 5)) AS test_name,
-       k.unit_concept_id, u.concept_code AS unit_code, k.n
-FROM (
-  SELECT data_partner_id, test_id,
-         max(harmonized_measurement_concept_id) AS harmonized_measurement_concept_id,
-         effective_unit_concept_id AS unit_concept_id, COUNT(*) AS n
-  FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
-  WHERE effective_unit_concept_id IS NOT NULL
-  GROUP BY data_partner_id, test_id, effective_unit_concept_id
-) k
-LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.harmonized_measurement_concept_id, 0)
-LEFT JOIN omop_vocab.concept u  ON u.concept_id = k.unit_concept_id;
+SELECT data_partner_id, test_id, test_name,
+       effective_unit_concept_id AS unit_concept_id, effective_unit_code AS unit_code,
+       COUNT(*) AS n
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
+WHERE effective_unit_concept_id IS NOT NULL
+GROUP BY data_partner_id, test_id, test_name, effective_unit_concept_id, effective_unit_code;
 
 -- 18b. Analyte per test
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_test_analytes AS
@@ -398,44 +455,24 @@ ORDER BY r.test_pattern, n DESC;
 -- COMMAND ----------
 -- ===== D3. Conversion decisions =====
 
--- 19. Decisions: one row per (partner, test, effective unit). The canonical
---     unit is per test, chosen across partners.
+-- 19. Decisions: one row per (partner, test, unit), the unit after
+--     unit_mapping's corrections (17d). The canonical unit is per test,
+--     chosen across partners.
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions AS
-WITH relabeled AS (
-  -- conv_code: the code each unit is converted as (NULL when blocked)
-  SELECT tu.*, rl.relabeled_as, rl.has_rule IS NOT NULL AND rl.relabeled_as IS NULL AS blocked,
-         CASE WHEN rl.has_rule IS NULL THEN tu.unit_code ELSE rl.relabeled_as END AS conv_code
-  FROM hive_metastore.ehr_union_clean_metrics.unit_test_units tu
-  LEFT JOIN (
-    SELECT t.data_partner_id, t.test_id, t.unit_concept_id, TRUE AS has_rule,
-           min_by(r.treat_as_code, CASE WHEN r.data_partner_id IS NOT NULL THEN 0
-                                        WHEN r.test_pattern IS NOT NULL THEN 1
-                                        ELSE 2 END) AS relabeled_as
-    FROM hive_metastore.ehr_union_clean_metrics.unit_test_units t
-    JOIN hive_metastore.ehr_union_clean_metrics.unit_relabel_rules r
-      ON  r.unit_code = t.unit_code
-      AND (r.test_pattern IS NULL OR t.test_name RLIKE r.test_pattern)
-      AND (r.data_partner_id IS NULL OR r.data_partner_id = t.data_partner_id)
-    GROUP BY 1, 2, 3
-  ) rl ON  rl.data_partner_id = tu.data_partner_id
-       AND rl.test_id = tu.test_id
-       AND rl.unit_concept_id = tu.unit_concept_id
-),
-cls AS (
+WITH cls AS (
   -- equivalent codes (same base, slope, intercept) count as one unit
-  SELECT r.test_id, r.unit_concept_id, r.conv_code, r.n,
-         CASE WHEN f.base IS NULL THEN concat('code:', COALESCE(r.conv_code, CAST(r.unit_concept_id AS STRING)))
+  SELECT r.test_id, r.unit_concept_id, r.unit_code, r.n,
+         CASE WHEN f.base IS NULL THEN concat('code:', COALESCE(r.unit_code, CAST(r.unit_concept_id AS STRING)))
               ELSE concat_ws(':', f.base, CAST(f.slope AS STRING), CAST(f.intercept AS STRING))
          END AS class_key
-  FROM relabeled r
-  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors f ON f.unit_code = r.conv_code
-  WHERE NOT r.blocked
+  FROM hive_metastore.ehr_union_clean_metrics.unit_test_units r
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors f ON f.unit_code = r.unit_code
 ),
 -- max_by keys include the code so ties in n resolve the same way every run
 cls_n AS (
   SELECT test_id, class_key, SUM(n) AS n,
-         max_by(conv_code, struct(n, conv_code, unit_concept_id)) AS top_code,
-         max_by(unit_concept_id, struct(n, conv_code, unit_concept_id)) AS top_unit_concept_id
+         max_by(unit_code, struct(n, unit_code, unit_concept_id)) AS top_code,
+         max_by(unit_concept_id, struct(n, unit_code, unit_concept_id)) AS top_unit_concept_id
   FROM cls GROUP BY 1, 2
 ),
 most_common AS (
@@ -460,10 +497,7 @@ canonical AS (
          CASE WHEN r.unit_code IS NOT NULL THEN 'rule' ELSE 'most_common' END AS canonical_source
   FROM most_common m
   LEFT JOIN rule r ON r.test_id = m.test_id
-  LEFT JOIN omop_vocab.concept ru
-    ON  ru.vocabulary_id = 'UCUM'
-    AND ru.concept_code = COALESCE(r.unit_code, m.unit_code)
-    AND ru.invalid_reason IS NULL
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = COALESCE(r.unit_code, m.unit_code)
 ),
 pairs AS (
   SELECT r.*, a.analyte,
@@ -472,10 +506,10 @@ pairs AS (
          fk.base AS k_base, fk.slope AS k_slope, fk.intercept AS k_intercept,
          CASE WHEN fu.base = fk.base THEN 1D ELSE b.slope END     AS b_slope,
          CASE WHEN fu.base = fk.base THEN 0D ELSE b.intercept END AS b_intercept
-  FROM relabeled r
+  FROM hive_metastore.ehr_union_clean_metrics.unit_test_units r
   JOIN canonical c ON c.test_id = r.test_id
   LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_test_analytes a ON a.test_id = r.test_id
-  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors fu ON fu.unit_code = r.conv_code
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors fu ON fu.unit_code = r.unit_code
   LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors fk ON fk.unit_code = c.canonical_unit_code
   LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_analyte_bridges b
     ON  b.analyte = a.analyte
@@ -484,18 +518,17 @@ pairs AS (
 )
 -- unit -> base -> (bridge) -> canonical:
 --   canonical = (b_slope * (u_slope * x + u_intercept) + b_intercept - k_intercept) / k_slope
-SELECT data_partner_id, test_id, test_name, unit_concept_id, unit_code, relabeled_as, n, analyte,
+SELECT data_partner_id, test_id, test_name, unit_concept_id, unit_code, n, analyte,
        canonical_unit_concept_id, canonical_unit_code, canonical_source,
-       CASE WHEN blocked                         THEN 'blocked'
-            WHEN conv_code = canonical_unit_code THEN 'identity'
+       CASE WHEN unit_code = canonical_unit_code THEN 'identity'
             WHEN u_base = k_base                 THEN 'same_base'
             WHEN b_slope IS NOT NULL             THEN 'analyte_bridge'
             ELSE 'no_conversion'
        END AS conversion_method,
-       CASE WHEN conv_code = canonical_unit_code THEN 1D
+       CASE WHEN unit_code = canonical_unit_code THEN 1D
             ELSE b_slope * u_slope / k_slope
        END AS conversion_slope,
-       CASE WHEN conv_code = canonical_unit_code THEN 0D
+       CASE WHEN unit_code = canonical_unit_code THEN 0D
             ELSE (b_slope * u_intercept + b_intercept - k_intercept) / k_slope
        END AS conversion_intercept
 FROM pairs;
@@ -513,7 +546,7 @@ GROUP BY 1 ORDER BY n_records DESC;
 --      Look for canonical units you'd not choose; add them to 17c.
 SELECT test_name, canonical_unit_code, canonical_source, SUM(n) AS n,
        array_join(collect_list(concat_ws(' ', concat(CAST(data_partner_id AS STRING), ':'),
-                                         unit_code, concat('->', relabeled_as),
+                                         unit_code,
                                          CAST(n AS STRING), conversion_method)), '; ') AS units
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions
 GROUP BY test_id, test_name, canonical_unit_code, canonical_source
@@ -523,9 +556,8 @@ ORDER BY n DESC;
 
 -- COMMAND ----------
 -- 19c. Medians per (partner, test, unit): median raw and converted value vs
---        the median of the test's records labeled with the canonical unit
---        (all partners). Relabeled units are listed even when the label is
---        the canonical code.
+--        the median of the test's records in the canonical unit (all
+--        partners).
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_conversion_medians AS
 WITH rec AS (
   SELECT d.*, k.value_as_number
@@ -536,25 +568,25 @@ WITH rec AS (
     AND d.unit_concept_id = k.effective_unit_concept_id
 ),
 per_unit AS (
-  SELECT data_partner_id, test_id, test_name, unit_code, relabeled_as, canonical_unit_code,
+  SELECT data_partner_id, test_id, test_name, unit_code, canonical_unit_code,
          conversion_method, analyte, COUNT(*) AS n,
          percentile_approx(value_as_number, 0.5) AS median_raw,
          percentile_approx(conversion_slope * value_as_number + conversion_intercept, 0.5)
            AS median_converted
   FROM rec
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+  GROUP BY 1, 2, 3, 4, 5, 6, 7
 ),
 canon AS (
   SELECT test_id, percentile_approx(value_as_number, 0.5) AS canonical_median
   FROM rec
-  WHERE unit_code = canonical_unit_code AND relabeled_as IS NULL
+  WHERE unit_code = canonical_unit_code
   GROUP BY 1
 )
 SELECT p.*, c.canonical_median,
        p.median_converted / NULLIF(c.canonical_median, 0) AS ratio
 FROM per_unit p
 LEFT JOIN canon c ON c.test_id = p.test_id
-WHERE p.unit_code <> p.canonical_unit_code OR p.relabeled_as IS NOT NULL;
+WHERE p.unit_code <> p.canonical_unit_code;
 
 
 -- COMMAND ----------
@@ -569,8 +601,8 @@ ORDER BY n DESC;
 -- COMMAND ----------
 -- 19e. Review: do converted values look like canonical-unit values?
 --      ratio far from 1 = wrong factor, wrong analyte, or the source unit
---      label is wrong (add a relabel rule, 17d). Most extreme first.
-SELECT test_name, data_partner_id, unit_code, relabeled_as, canonical_unit_code, conversion_method, n,
+--      label is wrong (add a correction row, A 1g). Most extreme first.
+SELECT test_name, data_partner_id, unit_code, canonical_unit_code, conversion_method, n,
        median_raw, median_converted, canonical_median, ratio
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_medians
 WHERE conversion_method <> 'no_conversion' AND canonical_median IS NOT NULL
@@ -585,13 +617,11 @@ ORDER BY greatest(abs(ratio), abs(try_divide(1, ratio))) DESC NULLS FIRST;
 --      least 20% of records. Settle one by adding it to 17c.
 WITH d AS (
   SELECT d.test_id, d.test_name, d.canonical_unit_code, d.canonical_source, d.n,
-         COALESCE(d.relabeled_as, d.unit_code) AS code,
+         d.unit_code AS code,
          COALESCE(concat_ws(':', f.base, CAST(f.slope AS STRING), CAST(f.intercept AS STRING)),
-                  concat('code:', COALESCE(d.relabeled_as, d.unit_code))) AS class_key
+                  concat('code:', d.unit_code)) AS class_key
   FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions d
-  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors f
-    ON f.unit_code = COALESCE(d.relabeled_as, d.unit_code)
-  WHERE d.conversion_method <> 'blocked'
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors f ON f.unit_code = d.unit_code
 ),
 cls AS (
   SELECT test_id, test_name, canonical_unit_code, canonical_source, class_key,
@@ -616,17 +646,114 @@ ORDER BY test_n DESC;
 
 
 -- COMMAND ----------
+-- ===== D3b. Plausibility limits =====
+
+-- 19g. The REDCap list's limits (Part 0) for each test in our data, converted
+--      from the list's unit to the test's canonical unit the same way 19
+--      converts records (factors, then an analyte bridge if the bases
+--      differ). list_* are the limits as 09 gives them.
+CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_plausibility_limits AS
+WITH t AS (
+  SELECT l.*, k.test_id, k.canonical_unit_code, a.analyte
+  FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests l
+  JOIN (SELECT DISTINCT test_id, canonical_unit_code
+        FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions) k
+    ON k.test_id = CAST(l.concept_id AS STRING)
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_test_analytes a ON a.test_id = k.test_id
+  WHERE l.imp_lo IS NOT NULL
+),
+c AS (
+  -- limit in the canonical unit = ca * limit + cb
+  SELECT t.*,
+         CASE WHEN t.list_unit_code = t.canonical_unit_code THEN 'identity'
+              WHEN fl.base = fk.base                       THEN 'same_base'
+              WHEN b.slope IS NOT NULL                     THEN 'analyte_bridge'
+              ELSE 'no_conversion'
+         END AS conversion_method,
+         CASE WHEN t.list_unit_code = t.canonical_unit_code THEN 1D
+              WHEN fl.base = fk.base THEN fl.slope / fk.slope
+              ELSE b.slope * fl.slope / fk.slope
+         END AS ca,
+         CASE WHEN t.list_unit_code = t.canonical_unit_code THEN 0D
+              WHEN fl.base = fk.base THEN (fl.intercept - fk.intercept) / fk.slope
+              ELSE (b.slope * fl.intercept + b.intercept - fk.intercept) / fk.slope
+         END AS cb
+  FROM t
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors fl ON fl.unit_code = t.list_unit_code
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors fk ON fk.unit_code = t.canonical_unit_code
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_analyte_bridges b
+    ON  b.analyte = t.analyte
+    AND b.from_base = fl.base
+    AND b.to_base = fk.base
+)
+SELECT test_id, concept_name AS test_name, limit_fields, list_unit_code, canonical_unit_code,
+       analyte, conversion_method,
+       imp_lo AS list_imp_lo, imp_hi AS list_imp_hi, ext_lo AS list_ext_lo, ext_hi AS list_ext_hi,
+       ca * imp_lo + cb AS imp_lo, ca * imp_hi + cb AS imp_hi,
+       ca * ext_lo + cb AS ext_lo, ca * ext_hi + cb AS ext_hi
+FROM c;
+
+-- 19h. CHECK (should return no rows): list tests in our data whose limits
+--      can't be converted to the canonical unit. Fix with a factor (17) or
+--      an analyte (17a).
+SELECT test_name, list_unit_code, canonical_unit_code, analyte
+FROM hive_metastore.ehr_union_clean_metrics.unit_plausibility_limits
+WHERE conversion_method = 'no_conversion';
+
+
+-- COMMAND ----------
+-- 19i. Review: is a group's unit wrong? Groups (partner, test, unit) on a
+--      list test whose median converted value is outside the plausible
+--      limits. A few bad values don't move a median, so a group listed here
+--      is almost certainly in another unit than its label (as one
+--      partner's "[lb_us]" body weights are ounces). Fix with a correction
+--      row (A 1g); nothing here changes the data. Groups with no
+--      conversion are in 19d instead.
+WITH rec AS (
+  SELECT d.data_partner_id, d.test_id, d.test_name, d.unit_code,
+         d.conversion_method, k.value_as_number,
+         d.conversion_slope * k.value_as_number + d.conversion_intercept AS harmonized
+  FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
+  JOIN hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions d
+    ON  d.data_partner_id = k.data_partner_id
+    AND d.test_id = k.test_id
+    AND d.unit_concept_id = k.effective_unit_concept_id
+  WHERE d.test_id IN (SELECT test_id FROM hive_metastore.ehr_union_clean_metrics.unit_plausibility_limits)
+)
+SELECT r.test_name, r.data_partner_id, r.unit_code, r.conversion_method,
+       COUNT(*) AS n,
+       percentile_approx(r.value_as_number, 0.5) AS median_raw,
+       percentile_approx(r.harmonized, 0.5) AS median_converted,
+       l.canonical_unit_code, l.imp_lo, l.imp_hi
+FROM rec r
+JOIN hive_metastore.ehr_union_clean_metrics.unit_plausibility_limits l ON l.test_id = r.test_id
+GROUP BY r.test_name, r.data_partner_id, r.unit_code, r.conversion_method,
+         l.canonical_unit_code, l.imp_lo, l.imp_hi
+HAVING median_converted < l.imp_lo OR median_converted > l.imp_hi
+ORDER BY n DESC;
+
+
+-- COMMAND ----------
 -- ===== D4. Apply conversion decisions =====
 
 -- 20. Apply. Rerunnable. Keys are the same as in the view (18).
+--     value_plausibility, for records on a list test with limits (19g):
+--     implausible (outside imp), extreme (inside imp, outside ext) or
+--     plausible. Empty for other tests and for records with no harmonized
+--     value. It only flags: the unit and value stay as they are.
 MERGE INTO hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
-USING hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions d
+USING (
+  SELECT d.*, l.imp_lo, l.imp_hi, l.ext_lo, l.ext_hi
+  FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions d
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_plausibility_limits l
+    ON l.test_id = d.test_id AND l.conversion_method <> 'no_conversion'
+) d
 ON  d.data_partner_id = t.data_partner_id
 AND d.test_id = CASE WHEN COALESCE(t.harmonized_measurement_concept_id, 0) = 0
                      THEN concat('src:', t.measurement_source_value)
                      ELSE CAST(t.harmonized_measurement_concept_id AS STRING)
                 END
-AND d.unit_concept_id = COALESCE(NULLIF(t.unit_concept_id, 0), NULLIF(t.inferred_unit_concept_id, 0))
+AND d.unit_concept_id = NULLIF(t.inferred_unit_concept_id, 0)
 AND t.value_as_number IS NOT NULL
 AND COALESCE(t.unit_inference_method, '') <> 'suspect_concept'
 WHEN MATCHED THEN UPDATE SET
@@ -635,16 +762,23 @@ WHEN MATCHED THEN UPDATE SET
   t.canonical_unit_value       = CASE WHEN d.conversion_slope IS NOT NULL
                                       THEN d.canonical_unit_code END,
   t.unit_conversion_method     = d.conversion_method,
-  t.harmonized_value_as_number = d.conversion_slope * t.value_as_number + d.conversion_intercept;
+  t.harmonized_value_as_number = d.conversion_slope * t.value_as_number + d.conversion_intercept,
+  t.value_plausibility         =
+    CASE WHEN d.imp_lo IS NULL OR d.conversion_slope IS NULL THEN NULL
+         WHEN d.conversion_slope * t.value_as_number + d.conversion_intercept
+              NOT BETWEEN d.imp_lo AND d.imp_hi THEN 'implausible'
+         WHEN d.conversion_slope * t.value_as_number + d.conversion_intercept
+              NOT BETWEEN d.ext_lo AND d.ext_hi THEN 'extreme'
+         ELSE 'plausible'
+    END;
 
 
 -- COMMAND ----------
 -- 20a. Review: numeric records by harmonization status
 SELECT CASE WHEN canonical_unit_concept_id IS NOT NULL  THEN 'in canonical unit'
-            WHEN harmonized_value_as_number IS NOT NULL THEN 'unitless'
-            WHEN COALESCE(NULLIF(unit_concept_id, 0), NULLIF(inferred_unit_concept_id, 0)) IS NOT NULL
-                                                        THEN 'has unit, no conversion'
-            ELSE 'no unit'
+            WHEN harmonized_value_as_number IS NOT NULL THEN 'no UCUM unit exists'
+            WHEN COALESCE(inferred_unit_concept_id, 0) <> 0 THEN 'has unit, no conversion'
+            ELSE 'failed to find unit'
        END AS status,
        COUNT(*) AS n
 FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
@@ -654,17 +788,15 @@ GROUP BY 1 ORDER BY n DESC;
 
 -- COMMAND ----------
 -- 20b. Review: stored body weights by test, partner and unit (run after 20).
---      kg_pct medians should all be near 80-90 kg. Partner 2084's [lb_us]
---      records are ounces (raw median 2847), relabeled in 17d.
-SELECT COALESCE(mc.concept_name, k.measurement_source_value) AS test_name,
-       k.data_partner_id, u.concept_code AS unit, k.unit_source_value,
-       k.unit_inference_method, COUNT(*) AS n,
-       percentile_approx(k.value_as_number, array(0.05, 0.5, 0.95)) AS raw_pct,
-       percentile_approx(k.harmonized_value_as_number, array(0.05, 0.5, 0.95)) AS kg_pct
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
-LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(k.harmonized_measurement_concept_id, 0)
-LEFT JOIN omop_vocab.concept u  ON u.concept_id = k.effective_unit_concept_id
-WHERE COALESCE(mc.concept_name, k.measurement_source_value) RLIKE '(?i)^body weight'
+--      kg_pct medians should all be near 80-90 kg. One partner's records
+--      that arrived as [lb_us] are ounces (raw median 2,848): corrected to
+--      [oz_av] (A 1g, D 17d). Another partner's stay [lb_us].
+SELECT test_name, data_partner_id, effective_unit_code AS unit, unit_source_value,
+       unit_inference_method, COUNT(*) AS n,
+       percentile_approx(value_as_number, array(0.05, 0.5, 0.95)) AS raw_pct,
+       percentile_approx(harmonized_value_as_number, array(0.05, 0.5, 0.95)) AS kg_pct
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
+WHERE test_name RLIKE '(?i)^body weight'
 GROUP BY 1, 2, 3, 4, 5
 ORDER BY 1, 2, n DESC;
 
@@ -675,13 +807,11 @@ ORDER BY 1, 2, n DESC;
 --      Near 1: the lb records are fine and the gap is who gets weighed in
 --      lb. Near 1.3 for everyone: the lb label or factor is wrong.
 WITH w AS (
-  SELECT k.person_id, k.data_partner_id, u.concept_code AS unit,
-         percentile_approx(k.harmonized_value_as_number, 0.5) AS kg
-  FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed k
-  JOIN omop_vocab.concept mc ON mc.concept_id = k.harmonized_measurement_concept_id
-  JOIN omop_vocab.concept u  ON u.concept_id = k.effective_unit_concept_id
-  WHERE mc.concept_name = 'Body weight'
-    AND u.concept_code IN ('kg', '[lb_us]')
+  SELECT person_id, data_partner_id, effective_unit_code AS unit,
+         percentile_approx(harmonized_value_as_number, 0.5) AS kg
+  FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
+  WHERE harmonized_concept_name = 'Body weight'
+    AND effective_unit_code IN ('kg', '[lb_us]')
   GROUP BY 1, 2, 3
 )
 SELECT lb.data_partner_id AS lb_partner, kg.data_partner_id AS kg_partner,
@@ -691,3 +821,32 @@ FROM w lb
 JOIN w kg ON kg.person_id = lb.person_id AND kg.unit = 'kg'
 WHERE lb.unit = '[lb_us]'
 GROUP BY 1, 2;
+
+
+-- COMMAND ----------
+-- 20d. Review: the REDCap list against our data, one row per list concept
+--      (Part 0), matched by the harmonized concept only (a list test recorded
+--      under another concept isn't counted). Records by how they got their
+--      unit, the canonical unit next to the list's, and value_plausibility
+--      counts; limits are in the canonical unit. not_checked: numeric
+--      records with no harmonized value (no unit, no conversion, suspect).
+SELECT l.concept_id, l.concept_name, COALESCE(l.lookup_fields, l.mapped_fields) AS fields,
+       l.list_unit_code, array_join(collect_set(t.canonical_unit_value), ', ') AS canonical_unit,
+       COUNT(t.value_as_number) AS n_numeric,
+       COUNT_IF(COALESCE(t.unit_concept_id, 0) <> 0) AS n_arrived_with_unit,
+       COUNT_IF(COALESCE(t.unit_concept_id, 0) = 0
+                AND COALESCE(t.inferred_unit_concept_id, 0) <> 0) AS n_unit_inferred,
+       COUNT_IF(t.value_plausibility = 'implausible') AS n_implausible,
+       COUNT_IF(t.value_plausibility = 'extreme') AS n_extreme,
+       COUNT_IF(t.value_as_number IS NOT NULL AND t.harmonized_value_as_number IS NULL) AS n_not_checked,
+       percentile_approx(t.harmonized_value_as_number, 0.5) AS median_harmonized,
+       concat(round(p.imp_lo, 3), ' to ', round(p.imp_hi, 3)) AS plausible,
+       concat(round(p.ext_lo, 3), ' to ', round(p.ext_hi, 3)) AS usual
+FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests l
+LEFT JOIN hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+  ON t.harmonized_measurement_concept_id = l.concept_id AND t.value_as_number IS NOT NULL
+LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_plausibility_limits p
+  ON p.test_id = CAST(l.concept_id AS STRING)
+GROUP BY l.concept_id, l.concept_name, l.lookup_fields, l.mapped_fields, l.list_unit_code,
+         p.imp_lo, p.imp_hi, p.ext_lo, p.ext_hi
+ORDER BY n_numeric DESC, l.concept_name;
