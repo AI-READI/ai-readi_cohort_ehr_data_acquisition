@@ -42,7 +42,6 @@
 --   * In Spark SQL an apostrophe inside a string is written \' (backslash);
 --     '' silently joins two strings instead.
 
-
 -- COMMAND ----------
 
 -- ===== A1. Setup: target table, added columns, records that arrived with a unit =====
@@ -102,13 +101,15 @@ WHEN MATCHED THEN UPDATE SET
 
 -- COMMAND ----------
 
--- 1d. Concept corrections. Last result: check 1e, should be empty.
+-- Check: 1e, in E_gate_checks.sql.
+
+-- 1d. Concept corrections.
 --     Records filed under the wrong concept: harmonized_measurement_concept_id
 --     gets the right one; every other record gets its own concept (0 when
 --     NULL). Rerunnable. A change here needs a full rerun of A-D, which group
 --     by this column.
 --     implausible_max: a corrected record at or below this value can't be
---     the new concept, and shows up in the check below.
+--     the new concept, and shows up in check 1e.
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections AS
 SELECT * FROM VALUES
   (3023884, 3011163, 1D,
@@ -125,16 +126,6 @@ ON t.measurement_concept_id = c.measurement_concept_id
 WHEN MATCHED THEN UPDATE SET
   t.harmonized_measurement_concept_id = c.harmonized_measurement_concept_id;
 
--- 1e. Check: corrected records whose value doesn't fit the new concept.
---     Should return no rows.
-SELECT t.data_partner_id, t.measurement_concept_id, t.harmonized_measurement_concept_id,
-       COUNT(*) AS n, min(t.value_as_number) AS min_value, max(t.value_as_number) AS max_value
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
-JOIN hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections c
-  ON c.measurement_concept_id = t.measurement_concept_id
-WHERE t.value_as_number <= c.implausible_max
-GROUP BY 1, 2, 3;
-
 -- COMMAND ----------
 
 -- 1f. ucum_units: standard, valid UCUM unit concepts, for looking up a
@@ -147,7 +138,8 @@ WHERE vocabulary_id = 'UCUM' AND standard_concept = 'S' AND invalid_reason IS NU
 
 -- COMMAND ----------
 
--- ===== A1b. What unit a record is in: judgment rows. Last result: check, should be empty =====
+-- ===== A1b. What unit a record is in: judgment rows =====
+-- Check: 1h, in E_gate_checks.sql.
 
 -- 1g. unit_judgments: the typed decisions about what unit a record is in.
 --     unit_mapping (1i, 1l) merges them with the automatic sources (UCUM
@@ -350,36 +342,9 @@ FROM VALUES
   ('mg/dL',    '^Cholesterol.total/Cholesterol in HDL', 3058, 'unit', '{ratio}', 'matches same-day total/HDL (F4b); corrected from 3023884')
 AS t(unit_code, test_pattern, data_partner_id, decision, target_code, rationale);
 
--- 1h. Check (should return no rows): judgment rows that can't be used.
-SELECT 'target not a standard UCUM code' AS problem, j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units u ON u.concept_code = j.target_code
-WHERE j.target_code IS NOT NULL AND u.concept_id IS NULL
-UNION ALL
-SELECT 'decision and target disagree', j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-WHERE (j.decision = 'unit') <> (j.target_code IS NOT NULL)
-   OR NOT (j.kind = 'text' AND j.decision IN ('unit', 'no_ucum_unit', 'not_a_unit')
-           OR j.kind = 'correction' AND j.decision IN ('unit', 'withheld'))
-UNION ALL
-SELECT 'no rationale', j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-WHERE trim(COALESCE(j.rationale, '')) = ''
-UNION ALL
-SELECT 'text key not trimmed', j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-WHERE j.kind = 'text' AND j.unit_source_value <> trim(j.unit_source_value)
-UNION ALL
-SELECT 'duplicate key (text ignoring case)', j.kind, j.unit_source_value, j.unit_code,
-       j.test_pattern, j.data_partner_id, j.decision, j.target_code, j.rationale
-FROM (SELECT *, COUNT(*) OVER (PARTITION BY kind, lower(unit_source_value), unit_code,
-                                            test_pattern, data_partner_id) AS n_same_key
-      FROM hive_metastore.ehr_union_clean_metrics.unit_judgments) j
-WHERE j.n_same_key > 1;
-
 -- COMMAND ----------
 
--- ===== A1c. unit_mapping: corrections, and the views that apply them. Last result: check, should be empty =====
+-- ===== A1c. unit_mapping: corrections, and the views that apply them =====
 
 -- 1i. unit_mapping: one row per decision about what unit a record is in.
 --     This cell writes the correction rows; 1l adds the text rows.
@@ -474,6 +439,8 @@ FULL OUTER JOIN maps_to m
   ON m.unit_code = j.unit_code AND j.test_pattern IS NULL AND j.data_partner_id IS NULL;
 
 -- COMMAND ----------
+
+-- Check: 1k, in E_gate_checks.sql.
 
 -- 1j. Views. The views' columns are fixed when they are created (SELECT *
 --     is expanded then), so rerun this cell whenever the table is
@@ -579,45 +546,11 @@ FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_named
 WHERE value_as_number IS NOT NULL
   AND COALESCE(unit_inference_method, '') <> 'suspect_concept';
 
--- 1k. Check (should return no rows): correction rows that clash.
---     duplicate key: two rows for one (unit code, pattern, partner).
---     tie: two equally specific rows match the same records and disagree.
---     maps_to row on a standard UCUM code: keyed by code, it would correct
---       every record in that standard unit, not just the non-standard one.
---     chain: records a row corrects into a code that another row would
---       correct again (only one correction is applied; write one row
---       straight to the final unit instead).
-SELECT 'duplicate key' AS problem,
-       concat_ws(' | ', unit_code, test_pattern, CAST(data_partner_id AS STRING)) AS item,
-       COUNT(*) AS n
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE kind = 'correction'
-GROUP BY unit_code, test_pattern, data_partner_id
-HAVING COUNT(*) > 1
-UNION ALL
-SELECT 'tie', concat_ws(' | ', CAST(data_partner_id AS STRING), test_name, from_code), n_results
-FROM hive_metastore.ehr_union_clean_metrics.unit_correction_keys
-WHERE n_results > 1
-UNION ALL
-SELECT 'maps_to row on a standard UCUM code (would hit every record in that unit)',
-       unit_code, 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE kind = 'correction' AND source = 'maps_to'
-  AND unit_code IN (SELECT concept_code FROM hive_metastore.ehr_union_clean_metrics.ucum_units)
-UNION ALL
-SELECT 'chain', concat_ws(' | ', CAST(k.data_partner_id AS STRING), k.test_name,
-                          concat(k.from_code, ' -> ', k.ucum_code, ' -> ', COALESCE(c.ucum_code, c.decision))),
-       1
-FROM hive_metastore.ehr_union_clean_metrics.unit_correction_keys k
-JOIN hive_metastore.ehr_union_clean_metrics.unit_mapping c
-  ON  c.kind = 'correction'
-  AND c.unit_code = k.ucum_code
-  AND (c.test_pattern IS NULL OR k.test_name RLIKE c.test_pattern)
-  AND (c.data_partner_id IS NULL OR c.data_partner_id = k.data_partner_id);
-
 -- COMMAND ----------
 
--- ===== A1d. unit_mapping: text rows. Last result: check, should be empty =====
+-- ===== A1d. unit_mapping: text rows =====
+-- Check: 1m, in E_gate_checks.sql.
+-- Reviews: 1n, 1o, 1p, in E_review_outputs.sql.
 
 -- 1l. Text rows: one per trimmed unit text on numeric records with no unit
 --     concept (Part B's records; B applies them in cell 12).
@@ -852,105 +785,11 @@ FROM f
 LEFT JOIN tm ON tm.t = f.t
 LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units u ON u.concept_id = f.unit_concept_id;
 
--- 1m. Check (should return no rows):
---     text key twice; a unit that isn't standard UCUM; a decision and unit
---     that disagree; text that is exactly a UCUM code but was decided by
---     ignoring case, or got another unit; numeric records with unit text
---     and no unit concept that have no text row (trimming must match).
-SELECT 'text key twice' AS problem, unit_source_value AS item, COUNT(*) AS n
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE kind = 'text'
-GROUP BY unit_source_value HAVING COUNT(*) > 1
-UNION ALL
-SELECT 'unit not standard UCUM', COALESCE(m.unit_source_value, m.unit_code), 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping m
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units u ON u.concept_id = m.unit_concept_id
-WHERE m.unit_concept_id IS NOT NULL AND u.concept_id IS NULL
-UNION ALL
-SELECT concat('decision ', decision, ' with unit ', COALESCE(ucum_code, 'none')),
-       COALESCE(unit_source_value, unit_code), 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE (decision = 'unit') <> (unit_concept_id IS NOT NULL)
-UNION ALL
-SELECT concat('UCUM code text decided as ', m.decision, ' ', COALESCE(m.ucum_code, ''),
-              ' by ', COALESCE(m.matched_by, '-')),
-       m.unit_source_value, 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping m
-JOIN hive_metastore.ehr_union_clean_metrics.ucum_units u ON u.concept_code = m.unit_source_value
-WHERE m.kind = 'text'
-  AND (m.matched_by IS DISTINCT FROM 'exact'
-       OR m.decision NOT IN ('unit', 'review')
-       OR (m.decision = 'unit' AND m.ucum_code <> m.unit_source_value))
-UNION ALL
-SELECT 'text with no row', trim(t.unit_source_value), COUNT(*)
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
-LEFT ANTI JOIN hive_metastore.ehr_union_clean_metrics.unit_mapping m
-  ON m.kind = 'text' AND m.unit_source_value = trim(t.unit_source_value)
-WHERE t.value_as_number IS NOT NULL
-  AND t.unit_source_value IS NOT NULL
-  AND COALESCE(t.unit_concept_id, 0) = 0
-GROUP BY trim(t.unit_source_value);
-
 -- COMMAND ----------
 
--- 1n. Review: every review row, with its candidates. These records get no
---     unit until settled. A judgment row (1g) settles text with no exact
---     match whose case variants disagree, and exact sources that disagree
---     when it picks one of their units, unless the text is itself a UCUM
---     code. Otherwise the data has to agree first: a correction row for the
---     arrived units that are wrong. A review correction row is
---     an arrived unit OMOP maps to no standard UCUM unit, or to several;
---     a judgment correction row settles it.
-SELECT kind, COALESCE(unit_source_value, unit_code) AS unit_text_or_code,
-       rationale, candidates, n, tests, median, test_median
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE decision = 'review'
-ORDER BY n DESC NULLS LAST, unit_text_or_code;
-
--- COMMAND ----------
-
--- 1o. Review: judgment rows an automatic source already covers with the
---     same unit; they can be deleted from 1g. A text judgment row covers
---     every case variant of its spelling, so delete it only if all its
---     spellings are listed. Correction rows: the judgment matches OMOP's
---     Maps to for the code.
-WITH a AS (
-  SELECT t,
-         COUNT(DISTINCT CASE WHEN exact THEN unit_concept_id END) AS n_exact_units,
-         min(CASE WHEN exact THEN unit_concept_id END) AS exact_unit,
-         COUNT(DISTINCT unit_concept_id) AS n_any_units,
-         min(unit_concept_id) AS any_unit
-  FROM hive_metastore.ehr_union_clean_metrics.unit_text_candidates
-  GROUP BY t
-)
-SELECT m.kind, m.unit_source_value AS key, m.ucum_code, m.candidates, m.rationale, m.n
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping m
-JOIN a ON a.t = m.unit_source_value
-WHERE m.kind = 'text' AND m.source = 'judgment' AND m.decision = 'unit'
-  AND CASE WHEN a.n_exact_units > 0 THEN a.n_exact_units = 1 AND a.exact_unit = m.unit_concept_id
-           ELSE a.n_any_units = 1 AND a.any_unit = m.unit_concept_id END
-UNION ALL
-SELECT m.kind, concat_ws(' | ', m.unit_code, m.test_pattern, CAST(m.data_partner_id AS STRING)),
-       m.ucum_code, m.candidates, m.rationale, m.n
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping m
-WHERE m.kind = 'correction' AND m.source = 'judgment'
-  AND m.candidates = concat('maps_to:', m.ucum_code)
-ORDER BY kind, key;
-
--- COMMAND ----------
-
--- 1p. Review: text decided by ignoring case (no exact match), or sent to
---     review because its case variants disagree. Look for case that
---     changes the meaning (s/S, h/H, mU/MU).
-SELECT unit_source_value, decision, ucum_code, source, rationale, candidates, n, tests,
-       median, test_median
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE kind = 'text' AND matched_by = 'ignoring_case'
-ORDER BY decision, n DESC;
-
--- COMMAND ----------
-
--- ===== A2. Rules, working views and decisions. Last result: check, should be empty =====
+-- ===== A2. Rules, working views and decisions =====
+-- Check: 4b, in E_gate_checks.sql.
+-- Reviews: 5a, 5b, in E_review_outputs.sql.
 
 -- 2. Hand rules by concept (the harmonized concept, cell 1d).
 --    no_ucum_unit    : no unit expected and no UCUM unit for it (specific gravity)
@@ -1120,35 +959,6 @@ LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_cod
 LEFT JOIN omop_vocab.concept cn
   ON cn.concept_id = u.harmonized_measurement_concept_id;
 
--- 4b. Check: explicit rules whose UCUM code didn't resolve to a concept.
---     Should return no rows; fix the code in cell 2 if it does.
-SELECT r.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_concept_rules r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = r.unit_code
-WHERE r.rule = 'explicit' AND ru.concept_id IS NULL;
-
--- COMMAND ----------
-
--- ===== A3. Review: summary by method =====
-
--- 5a. Review: how many groups and records each method covers
-SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
-FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions
-GROUP BY 1
-ORDER BY n_records DESC;
-
--- COMMAND ----------
-
--- ===== A4. Review: every group =====
-
--- 5b. Review: every group, with the chosen unit spelled out
-SELECT d.unit_inference_method, d.data_partner_id, d.harmonized_measurement_concept_id, d.concept_name,
-       d.range_low, d.range_high, d.n, d.med,
-       uc.concept_code AS inferred_unit, d.evidence_n, d.evidence_median, d.note
-FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions d
-LEFT JOIN omop_vocab.concept uc ON uc.concept_id = d.inferred_unit_concept_id
-ORDER BY d.n DESC;
-
 -- COMMAND ----------
 
 -- ===== A5. Apply Part A decisions =====
@@ -1183,7 +993,8 @@ WHEN MATCHED THEN UPDATE SET
 
 -- COMMAND ----------
 
--- ===== A6. No-concept records: rules. Last result: check, should be empty =====
+-- ===== A6. No-concept records: rules =====
+-- Check: 7b, in E_gate_checks.sql.
 
 -- 7. Records with no concept (harmonized_measurement_concept_id = 0): the
 --    unit for each source test name, matched exactly against
@@ -1283,16 +1094,10 @@ SELECT * FROM VALUES
   ('gfr, calc, african american',     'source_name', 'mL/min/(173.10*-2.m2)')
 AS t(source_name, rule, unit_code);
 
--- 7b. Check: unit codes that don't resolve to a UCUM concept.
---     Should return no rows; fix the code in cell 7 if it does.
-SELECT r.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_source_name_rules r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = r.unit_code
-WHERE r.unit_code IS NOT NULL AND ru.concept_id IS NULL;
-
 -- COMMAND ----------
 
--- ===== A7. No-concept records: decisions. Last result: review =====
+-- ===== A7. No-concept records: decisions =====
+-- Review: 8b, in E_review_outputs.sql.
 
 -- 8. Decisions for the no-concept groups, keyed by partner + source name + range
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_inference_source_name_decisions AS
@@ -1322,10 +1127,6 @@ SELECT m.data_partner_id, m.measurement_source_value, m.range_low, m.range_high,
        m.source_name AS matched_name
 FROM m
 LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = m.unit_code;
-
--- 8b. Review
-SELECT * FROM hive_metastore.ehr_union_clean_metrics.unit_inference_source_name_decisions
-ORDER BY unit_inference_method, n DESC;
 
 -- COMMAND ----------
 
