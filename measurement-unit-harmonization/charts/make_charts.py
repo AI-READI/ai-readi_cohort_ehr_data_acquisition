@@ -34,10 +34,9 @@ def style(ax):
 
 def unit_assignment():
     # (group, unit found, no UCUM unit exists, failed to find unit); E1 by part
-    # B's no_ucum_unit records (under 11) are counted as failed to find, as in the README
     parts = [
         ('A  No unit, has a reference range', 195_400, 9_628, 88),
-        ('B  Unit text with no unit concept', 54_544, 0, 711),
+        ('B  Unit text with no unit concept', 54_544, 1, 710),
         ('C  No unit, no reference range', 1_043_622, 14_784, 4_658),
     ]
     outcomes = ['Unit found', 'No UCUM unit exists', 'Failed to find unit']

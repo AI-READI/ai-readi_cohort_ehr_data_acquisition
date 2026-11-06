@@ -108,7 +108,7 @@ ORDER BY unit_inference_method, n DESC;
 --      source.
 --      Expect: 55,255 records in all. Unit 54,544 (judgment 35,762,
 --      ucum_code 14,483, arrived_unit 4,258, maps_to 41); unmapped 436;
---      not_a_unit 274; no_ucum_unit under 11; no review rows.
+--      not_a_unit 274; no_ucum_unit 1; no review rows.
 SELECT decision, source, matched_by, COUNT(*) AS n_texts, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text'
@@ -574,7 +574,7 @@ ORDER BY n_numeric DESC, l.concept_name;
 --      A: total 205,116; unit methods 195,400; no_ucum_unit 9,628 (specific
 --         gravity); suspect_concept 82; needs_review plus no_concept under 11
 --      B: total 55,255; mapped_string 54,544; unmapped_string 436;
---         not_a_unit 274; no_ucum_unit under 11 (ACTIVITY COEFF)
+--         not_a_unit 274; no_ucum_unit 1 (ACTIVITY COEFF)
 --      C: total 1,063,064; explicit 968,631 (the 6,457 HDL/total records
 --         among them, {ratio} under 3011163); no_ucum_unit 14,784; partner_unit
 --         plus dataset_unit 74,172; source_name 479; not_a_quantity 3,789;
