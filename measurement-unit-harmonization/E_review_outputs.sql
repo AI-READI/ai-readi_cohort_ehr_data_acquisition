@@ -285,14 +285,15 @@ ORDER BY 1, 2, 3 NULLS FIRST;
 -- 15e (Part C). Review: Residual volume/Total capacity against the
 --      lung-volume tests that have units. A median near TLC in L would
 --      mean the field holds TLC, not the ratio.
---      part_d marks Part C's records, which show the unit C gave them.
---      suspect_concept records aren't included.
+--      part_d marks Part C's records, which show the unit C gave them;
+--      suspect_concept records show no unit.
 SELECT test_id, test_name, effective_unit_code AS unit,
        range_high IS NULL AND unit_source_value IS NULL AS part_d,
        COUNT(*) AS n,
        percentile_approx(value_as_number, array(0.05, 0.25, 0.5, 0.75, 0.95)) AS pct
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
-WHERE test_name RLIKE '(?i)residual volume|total (lung )?capacity|^TLC|RV/TLC'
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_named
+WHERE value_as_number IS NOT NULL
+  AND test_name RLIKE '(?i)residual volume|total (lung )?capacity|^TLC|RV/TLC'
 GROUP BY test_id, test_name, effective_unit_code, 4
 ORDER BY test_name, n DESC;
 
@@ -300,8 +301,9 @@ ORDER BY test_name, n DESC;
 
 -- 15f (Part C). Review: RV/TLC holds two values per exam (438 = 2 x 219), one near
 --      3-6 and one near 30-40. If the low one is TLC in L, then
---      100 * RV / low should equal high. One row per exam; match_2pt counts
---      exams where they agree within 2 points.
+--      100 * RV / low should equal high. match_2pt counts exams where they
+--      agree within 2 points.
+--      Expect: 214 exams, all matching.
 WITH r AS (
   SELECT person_id, measurement_date, harmonized_measurement_concept_id AS c, value_as_number AS v
   FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records
@@ -315,11 +317,9 @@ e AS (
          count_if(c = 21493446) AS n_ratio
   FROM r GROUP BY 1, 2
 )
-SELECT *, round(100 * rv / low, 1) AS rv_over_low_pct,
-       count_if(abs(100 * rv / low - high) <= 2) OVER () AS match_2pt,
-       COUNT(*) OVER () AS n_exams
-FROM e
-ORDER BY person_id, measurement_date;
+SELECT COUNT(*) AS n_exams,
+       count_if(abs(100 * rv / low - high) <= 2) AS match_2pt
+FROM e;
 
 -- COMMAND ----------
 

@@ -1,6 +1,13 @@
 # Unit harmonization of AI-READI EHR measurements
 
-Every numeric measurement record, by how it arrived and where it ended up:
+Of 7,027,806 numeric measurement records, 6,997,923 (99.6%) have a unit, and
+6,993,280 of those are in their test's canonical unit. The other 29,883 have no
+UCUM unit to give them, or no unit was found.
+
+## Units inferred
+
+1,323,435 records arrived with no unit concept, and 1,293,566 of them got a
+unit. Every numeric record, by how it arrived and where it ended up:
 
 | Arrived with | Records | Has a unit now | No UCUM unit exists | Failed to find unit |
 |---|---:|---:|---:|---:|
@@ -14,10 +21,31 @@ Every numeric measurement record, by how it arrived and where it ended up:
 Counts are from the 2026-11-03 run. Counts under 11 aren't reported: the
 unit-text group's no-UCUM records are counted under failed to find unit.
 
-Of the 6,997,923 records with a unit, 6,993,280 (99.9%) are in their test's
-canonical unit: 5,984,535 already were, and 1,008,745 were converted.
+![Records that arrived without a unit concept](charts/unit_assignment.png)
 
 The method behind each count is in [Appendix A](#appendix-a-records-by-method).
+
+## Values converted
+
+Of the 6,997,923 records with a unit, 6,993,280 (99.9%) are in their test's
+canonical unit: 5,984,535 already were, and 1,008,745 were converted. How that
+works is in [Conversion to a canonical unit](#conversion-to-a-canonical-unit).
+
+![Records with a unit, by conversion to the canonical unit](charts/conversion.png)
+
+## Failed or needs review
+
+| What | Records | Which |
+|---|---:|---|
+| No unit found | 5,471 | Codes stored as numbers 3,789; small tests with no rule yet 650; unit text nothing maps 436; values that don't fit their test 307; junk unit text 275; a correction left no unit 14 |
+| Has a unit, can't convert | 4,643 | Arbitrary antibody units, log viral loads, tests holding two quantities |
+| Values flagged implausible | 4,300 | Outside the REDCap list's plausible limits, mostly vitals. Values unchanged |
+| Values flagged extreme | 24,426 | Inside those limits, outside the usual range. Values unchanged |
+
+The 24,412 records with no UCUM unit aren't failures: specific gravity, counts,
+Ct values and the like, kept as recorded. The flags cover only tests on the
+list ([Plausibility](#plausibility)). Open questions are in
+[Known issues](#known-issues).
 
 ## Where the results are
 
@@ -63,12 +91,11 @@ indexes, scores, fractions, multiples of the median and optical density have
 UCUM units (`{ratio}`, `pH`, `{index}`, `[score]`, `{fraction}`, `{MOM}`,
 `{ISR}`, `[OD'U]`), and get them.
 
-![Records that arrived without a unit concept](charts/unit_assignment.png)
-
 ## Conversion to a canonical unit
 
-Each test gets one canonical unit: its most common unit, or one set by hand
-for these tests:
+Each test gets one canonical unit: its most common unit across partners,
+counting equivalent codes together (mmol/L and mEq/L aren't equivalent; [iU]/L
+and [U]/L are), or one set by hand for these tests:
 
 | Test | Canonical unit |
 |---|---|
@@ -79,13 +106,19 @@ for these tests:
 | 24 h urine protein | mg/(24.h) |
 | Urine albumin | mg/dL, the REDCap list's unit |
 
-Units convert by fixed factors (lb to kg, °F to °C, mg/L to mg/dL), and by
-molar mass or ionic charge where the analyte is known (mEq/L to mmol/L for
-sodium, potassium, chloride and bicarbonate). Mislabeled units were found by
-comparing converted medians with those of records already in the canonical
-unit, and are corrections in `unit_mapping`, applied before conversion.
+`unit_conversion_method` says how each record got there:
 
-![Records with a unit, by conversion to the canonical unit](charts/conversion.png)
+| `unit_conversion_method` | How | Records |
+|---|---|---:|
+| identity | Already in the canonical unit | 5,984,535 |
+| same_base | Fixed factor (lb to kg, °F to °C, mg/L to mg/dL) | 943,360 |
+| analyte_bridge | Molar mass or ionic charge, where the analyte is known (mEq/L to mmol/L for sodium, potassium, chloride and bicarbonate) | 65,385 |
+| no_conversion | No fixed conversion exists, so `harmonized_value_as_number` stays empty | 4,643 |
+
+Each conversion is `slope * value + intercept`, set per partner, test and unit.
+Mislabeled units were found by comparing converted medians with those of
+records already in the canonical unit, and are corrections in `unit_mapping`,
+applied before conversion.
 
 ## Records under the wrong concept
 
