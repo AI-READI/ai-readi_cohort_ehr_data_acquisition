@@ -13,10 +13,10 @@
 --   redcap_list_tests         the three joined: one row per OMOP concept
 -- The files are written for the survey data and keyed by REDCap field
 -- name; the EHR data is keyed by concept, so 0b joins them on field and
--- keeps the concept. Cell 0d shows the result for review.
-
+-- keeps the concept. Review 0d shows the result.
 
 -- COMMAND ----------
+
 -- MAGIC %python
 -- MAGIC # 0a. Load the files from DataElementMaps (main) on every run, so they are
 -- MAGIC #     never a stale copy. Needs the cluster to reach raw.githubusercontent.com.
@@ -66,8 +66,11 @@
 -- MAGIC   UNION ALL SELECT 'redcap_unit_lookup', COUNT(*) FROM {SCHEMA}.redcap_unit_lookup
 -- MAGIC   UNION ALL SELECT 'redcap_value_limits', COUNT(*) FROM {SCHEMA}.redcap_value_limits'''))
 
-
 -- COMMAND ----------
+
+-- Check: 0c, in E_gate_checks.sql.
+-- Review: 0d, in E_review_outputs.sql.
+
 -- 0b. The list per OMOP concept: one row for every standard concept the
 --     mapping puts in the Measurement domain (the AI-READI custom concepts,
 --     2005200xxx, aren't in omop_vocab and never appear in EHR data). The
@@ -116,45 +119,3 @@ JOIN omop_vocab.concept c ON c.concept_id = l.concept_id
 LEFT JOIN lookup k ON k.concept_id = l.concept_id
 LEFT JOIN lim m    ON m.concept_id = l.concept_id
 LEFT JOIN omop_vocab.concept uc ON uc.concept_id = k.list_unit_concept_id;
-
-
--- COMMAND ----------
--- 0c. CHECK (should return no rows): list rows that can't be used as they
---     stand. Any row here is a question for the list's maintainers.
-SELECT 'two units for one concept' AS problem, concept_name AS item
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests WHERE n_units > 1
-UNION ALL
-SELECT 'two sets of limits for one concept', concept_name
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests WHERE n_limit_sets > 1
-UNION ALL
-SELECT 'list unit is not a UCUM concept', concat(concept_name, ': ', CAST(list_unit_concept_id AS STRING))
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests
-WHERE list_unit_concept_id IS NOT NULL AND COALESCE(list_unit_vocabulary, '') <> 'UCUM'
-UNION ALL
-SELECT 'limits but no list unit', concept_name
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests
-WHERE imp_lo IS NOT NULL AND list_unit_code IS NULL
-UNION ALL
-SELECT '09 field not in the unit lookup', r.field
-FROM hive_metastore.ehr_union_clean_metrics.redcap_value_limits r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.redcap_unit_lookup u ON u.lookup_key = r.field
-WHERE u.lookup_key IS NULL
-UNION ALL
-SELECT 'lookup concept not in the mapping', concat(u.lookup_key, ': ', u.target_concept_id)
-FROM hive_metastore.ehr_union_clean_metrics.redcap_unit_lookup u
-JOIN omop_vocab.concept c ON c.concept_id = try_cast(u.target_concept_id AS BIGINT)
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.redcap_list_tests l ON l.concept_id = c.concept_id
-WHERE l.concept_id IS NULL;
-
-
--- COMMAND ----------
--- 0d. Review: the list as the EHR notebooks use it, one row per concept.
---     list_unit_code: the list's unit as a UCUM code (only used to convert
---     the limits; our canonical units stay UCUM, e.g. mmol/L not mEq/L).
---     imp: outside = implausible; ext: outside = clinically extreme. Rows
---     with no limits are tests 09 gives none for; Part D only flags tests
---     with limits.
-SELECT concept_id, concept_name, COALESCE(lookup_fields, mapped_fields) AS fields,
-       list_unit_code, limit_fields, imp_lo, imp_hi, ext_lo, ext_hi
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests
-ORDER BY imp_lo IS NULL, concept_name;

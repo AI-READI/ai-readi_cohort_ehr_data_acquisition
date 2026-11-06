@@ -1,6 +1,6 @@
 # Design: one place for what unit a record is in
 
-`unit_mapping` is built in Part A, cells 1g-1p of
+`unit_mapping` is built in Part A, cells 1g-1l of
 [A_unit_inference_range_groups.sql](A_unit_inference_range_groups.sql). How
 the pipeline uses it is in [README.md](README.md).
 

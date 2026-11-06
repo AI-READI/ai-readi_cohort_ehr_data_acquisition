@@ -125,7 +125,7 @@ partner ids. [G_rule_tables.sql](G_rule_tables.sql) produces them.
 | [test_concept_rules.csv](tables/test_concept_rules.csv) | 38 | Part A's rules for a test concept |
 | [source_name_rules.csv](tables/source_name_rules.csv) | 81 | Units for records with no test concept, by source test name |
 
-Left out: `unit_factors` (149 rows; `conversions.csv` shows those used) and
+Left out: `unit_factors` (149 rows; [conversions.csv](tables/conversions.csv) shows those used) and
 value bands (8).
 
 Every rule is a table in `ehr_union_clean_metrics`, and every record carries
@@ -155,8 +155,8 @@ set it.
   threshold, RV free wall S', tidal volume setting and ionized calcium hold
   two quantities, so no canonical unit covers both.
 - **Corrections whose result still doesn't match the test's other records:**
-  CEA, testosterone and expiratory minute volume (D's 17f), and 24 h urine
-  protein (19e).
+  CEA, testosterone and expiratory minute volume (review 17f), and 24 h urine
+  protein (review 19e).
 - **Records with no concept** that got a unit from a source name can't be
   checked against the list's limits, and have had no sign-off.
 - **The REDCap list against our data:**
@@ -187,15 +187,24 @@ raw.githubusercontent.com.
 1. Import the `.sql` files below (Workspace > Import > File). They are in
    Databricks source format, so each splits into its cells on import.
 2. Run 0, A, B, C and D in order, each top to bottom. Part 0 only loads the
-   REDCap list; its last cell (0d) shows the list for review. A's cell 1 drops
-   and recreates `measurement_unit_harmonized`, so rerunning A means rerunning
-   B, C and D after it. Each other part clears D's columns on the records it
-   writes, so rerunning one means rerunning D after it.
-3. Run E. Every cell marked "Check" should return no rows, and every review
-   should match the expectation in its comment.
-4. To refresh `tables/`, run G, export it as `.ipynb` to
+   REDCap list. A's cell 1 drops and recreates `measurement_unit_harmonized`,
+   so rerunning A means rerunning B, C and D after it. Each other part clears
+   D's columns on the records it writes, so rerunning one means rerunning D
+   after it.
+3. Run the gate, top to bottom. Its last cell raises an error if any check
+   returned rows, and lists them.
+4. To read the results, run E. Every review should match the expectation in
+   its comment.
+5. To refresh `tables/`, run G, export it as `.ipynb` to
    `ref_files/G_rule_tables.ipynb`, and run
    [make_tables.py](make_tables.py).
+
+In the production pipeline, 0, A, B, C, D and the gate go in the job for steps
+11-12, as tasks after
+[drop orphan.sql](../ehr_data_harmonization_pipeline/12-union-clean/drop%20orphan.sql),
+the last step to change `ehr_union_clean.measurement`. E, F and G are run by
+hand. Nothing here reaches the release, because step 13 exports only
+`ehr_union_clean`. `ehr_union_clean_mactel.measurement` isn't harmonized.
 
 | Notebook | Source |
 |---|---|
@@ -204,7 +213,8 @@ raw.githubusercontent.com.
 | B. Unit text, no unit concept | [B_unit_inference_with_source_value_but_no_unit_concept.sql](B_unit_inference_with_source_value_but_no_unit_concept.sql) |
 | C. No unit, no reference range | [C_unit_inference_no_unit_no_range.sql](C_unit_inference_no_unit_no_range.sql) |
 | D. Conversion to canonical units, plausibility | [D_unit_conversion.sql](D_unit_conversion.sql) |
-| E. Checks and review of the run | [E_review_outputs.sql](E_review_outputs.sql) |
+| Gate: checks that fail the run | [E_gate_checks.sql](E_gate_checks.sql) |
+| E. Review of the run | [E_review_outputs.sql](E_review_outputs.sql) |
 | F. Probes for review questions (optional) | [F_probes.sql](F_probes.sql) |
 | G. Rule tables for review (optional) | [G_rule_tables.sql](G_rule_tables.sql) |
 

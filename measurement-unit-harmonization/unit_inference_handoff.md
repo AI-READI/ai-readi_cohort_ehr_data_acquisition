@@ -25,8 +25,8 @@ Nothing identifying goes in the repo:
   checks; their accuracy is never traded for more rows overall.
 - **Unit codes:** standard UCUM (our mmol/L, [iU]/L), not the list's mEq/L and
   IU/L labels.
-- **Map version:** the latest. D loads the files from DataElementMaps' `main`
-  on every run (Part 0), not the copies in `redcapsurveydb`.
+- **Map version:** the latest. Part 0 loads the files from DataElementMaps'
+  `main` on every run, not the copies in `redcapsurveydb`.
 - **Plausibility limits flag values and never change units.** On list tests,
   Part A's implausible values were bad values with a correct unit, and most of
   those records carry an entry limit as their "reference range". Dropping units
@@ -51,14 +51,13 @@ Nothing identifying goes in the repo:
 
 - A view's `SELECT *` is expanded when it is created, so cell 1j has to rerun
   whenever the table is recreated.
-- A change to a query in A-D that E copies has to be copied to E.
 - The measurement table has no `value_source_value` column, so there's no raw
   value text to look for units in.
 - OMOP UCUM codes write international units as `[iU]` (lowercase i) and
   prefixes as powers of ten: `10*-6.[iU]/mL` = uIU/mL, `10*-3.eq/L` = mEq/L,
   `mL/min/(173.10*-2.m2)` = eGFR units, `[lb_us]` = pound.
-- Every hand-written unit code needs a check query against `ucum_units`; codes
-  written from memory are often wrong.
+- Every hand-written unit code needs a check in the gate against `ucum_units`;
+  codes written from memory are often wrong.
 - Some unit codes in the data aren't standard UCUM (`[degC]`,
   `mL/min/1.73.m2`). `unit_mapping` corrects them; don't give them a factor
   row.
@@ -76,14 +75,18 @@ Nothing identifying goes in the repo:
 - Notebook files are in Databricks source format, so they import without
   splitting cells by hand: first line `-- Databricks notebook source`, cells
   separated by `-- COMMAND ----------`, no `%sql` lines.
-- After each change: delete the notebooks, re-import every file, rerun A-F
-  (Part 0 only to reload the list), and export E and F to `ref_files/` for
-  checking. Docs carry no Databricks URLs: they change on every re-import.
+- After each change: delete the notebooks, re-import every file, rerun A-D
+  and the gate (Part 0 only to reload the list), run E and F, and export them
+  to `ref_files/` for checking. Docs carry no Databricks URLs: they change on
+  every re-import.
 - Cell numbers run on across the parts: Part 0 is 0a-0d, A ends at 9, B is
   10-12, C is 13-16, D is 17-20.
-- Every query whose result needs looking at gets its own cell; table-building
-  statements can share a cell.
-- Keep everything that needs checking in one review notebook, as
-  [E_review_outputs.sql](E_review_outputs.sql) does.
-- Pattern for each step: build rules, run a check (should return no rows),
-  build decisions, review, then apply with a rerunnable MERGE.
+- No queries in 0 or A-D, because they run in batch. Each step's cell comment
+  names its checks and reviews, which keep the step's cell number.
+- A query that should return no rows is a check: a temp view in
+  [E_gate_checks.sql](E_gate_checks.sql), named in the `CHECKS` list in its last
+  cell. Every other query gets its own cell in
+  [E_review_outputs.sql](E_review_outputs.sql). Table-building statements can
+  share a cell.
+- Pattern for each step: build rules, build decisions, then apply with a
+  rerunnable MERGE.
