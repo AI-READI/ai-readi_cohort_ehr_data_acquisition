@@ -1,0 +1,82 @@
+source_name,rule,unit
+"specific gravity, urine",no_ucum_unit,
+"specific gravity, urn",no_ucum_unit,
+"specific gravity, urn, externa",no_ucum_unit,
+"hematocrit, external",source_name,%
+"rdw-cv, external",source_name,%
+insulin,source_name,10*-6.[iU]/mL
+"insulin, external",source_name,10*-6.[iU]/mL
+"thyroid stimulating hormone, e",source_name,10*-6.[iU]/mL
+"basophils, external",source_name,10*3/uL
+"eosinophil count, external",source_name,10*3/uL
+immature granulocytes,source_name,10*3/uL
+"immature granulocytes, externa",source_name,10*3/uL
+"lymphocyte count, external",source_name,10*3/uL
+"monocytes, external",source_name,10*3/uL
+"neutrophils, external",source_name,10*3/uL
+"platelet count, external",source_name,10*3/uL
+"urobilinogen, urn, external",source_name,[EU]/dL
+"alkaline phosphatase (total),",source_name,[U]/L
+"alt (gpt), external",source_name,[U]/L
+"ast (got), external",source_name,[U]/L
+nash fibrosis score,source_name,[score]
+nash score,source_name,[score]
+nash steatosis score,source_name,[score]
+"albumin, external",source_name,g/dL
+globulin,source_name,g/dL
+"hemoglobin, external",source_name,g/dL
+"hemoglobin, poct",source_name,g/dL
+"protein (total), external",source_name,g/dL
+"gfr, calc, african american",source_name,mL/min/(173.10*-2.m2)
+apolipoprotein b,source_name,mg/dL
+"calcium, external",source_name,mg/dL
+"cholesterol (total), external",source_name,mg/dL
+creatinine,source_name,mg/dL
+"creatinine, external",source_name,mg/dL
+"creatinine/unit, urn (sendout)",source_name,mg/dL
+direct bilirubin (beckman),source_name,mg/dL
+"glucose qual, urn, external",source_name,mg/dL
+"glucose, external",source_name,mg/dL
+"magnesium, external",source_name,mg/dL
+"non-hdl cholesterol, external",source_name,mg/dL
+"phosphate, external",source_name,mg/dL
+"triglyceride, external",source_name,mg/dL
+"albumin/creatinine ratio, urn,",source_name,mg/g{creat}
+"rbc sedimentation rate, extern",source_name,mm/h
+chloride,source_name,mmol/L
+"chloride, external",source_name,mmol/L
+"potassium, external",source_name,mmol/L
+sodium,source_name,mmol/L
+"sodium, external",source_name,mmol/L
+"osmolality, urn",source_name,mosm/kg
+free t4 by equil.di.,source_name,ng/dL
+"testosterone, external",source_name,ng/dL
+"ferritin, external",source_name,ng/mL
+"prolactin, external",source_name,ng/mL
+"vit d (25_hydroxy) total, exte",source_name,ng/mL
+"vitamin d2 (25_hydroxy), exter",source_name,ng/mL
+"vitamin d3 (25_hydroxy), exter",source_name,ng/mL
+"ph, mixed ven",source_name,pH
+"ph, urn",source_name,pH
+"ph, urn (uwnc)",source_name,pH
+"ph, urn, external",source_name,pH
+"ph, ven",source_name,pH
+"ph, wet mount",source_name,pH
+"free testosterone, calculated,",source_name,pg/mL
+parathyroid hormone,source_name,pg/mL
+"parathyroid hormone, external",source_name,pg/mL
+"cortisol, external",source_name,ug/dL
+"aspergillus gm confirm, bal",source_name,{index}
+aspergillus gm index,source_name,{index}
+"aspergillus gm index, bal",source_name,{index}
+"immunoglobulin g index, csf",source_name,{index}
+jcv index value,source_name,{index}
+teratozoospermia index,source_name,{index}
+albumin/globulin ratio,source_name,{ratio}
+bun/creatinine ratio,source_name,{ratio}
+cd4/cd8 ratio,source_name,{ratio}
+"igg/albumin, csf",source_name,{ratio}
+"inr fingerstick, rapid lab",source_name,{ratio}
+kappa/lambda flc ratio,source_name,{ratio}
+prothrombin inr,source_name,{ratio}
+"prothrombin inr, external",source_name,{ratio}

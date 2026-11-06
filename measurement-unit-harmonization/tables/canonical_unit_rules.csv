@@ -1,0 +1,7 @@
+test_pattern,canonical_unit,note
+"^(Body weight|PR Maternal Weight|NASH Weight, lbs)$",kg,"the last two: no concept, mostly [lb_us]"
+^Albumin .Mass/volume. in Urine$,mg/dL,the REDCap list's unit; most common was mg/L
+^Body height$,cm,
+^Body temperature$,Cel,
+^Hemoglobin A1c/Hemoglobin.total in Blood$,%,
+^Protein .Mass/time. in 24 hour Urine$,mg/(24.h),most common was mg/dL

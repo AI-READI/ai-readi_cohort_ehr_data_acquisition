@@ -1,0 +1,78 @@
+from_unit,to_unit,multiply_by,add,analyte,n_tests,example_test
+%{calc},%,1.0,0.0,,2,Iron saturation [Mass Fraction] in Serum or Plasma
+%{of'HGB},%,1.0,0.0,,1,Hemoglobin A1c/Hemoglobin.total in Blood
+{counts}/min,/min,1.0,0.0,,1,Heart rate
+/uL,/mm3,1.0,0.0,,1,CD3 cells [#/volume] in Blood
+{cells}/uL,/mm3,1.0,0.0,,3,Erythrocytes [#/volume] in Body fluid by Automated count
+10*-6.[U]/mL,10*-3.[iU]/L,1.0,0.0,,1,Thyrotropin [Units/volume] in Serum or Plasma
+10*-6.[iU]/mL,10*-3.[iU]/L,1.0,0.0,,1,Thyrotropin [Units/volume] in Serum or Plasma
+mmol/L,10*-3.eq/L,1.0,0.0,lithium,1,Lithium [Moles/volume] in Serum or Plasma
+10*-6.[iU]/mL,10*-6.[U]/mL,1.0,0.0,,1,Insulin [Units/volume] in Serum or Plasma --fasting
+10*-6.[U]/mL,10*-6.[iU]/mL,1.0,0.0,,1,Insulin [Units/volume] in Serum or Plasma
+/mm3,10*3/mm3,0.001,0.0,,1,Leukocytes [#/volume] in Blood by Automated count
+10*3/uL,10*3/mm3,1.0,0.0,,11,Leukocytes [#/volume] in Blood by Automated count
+{cells}/uL,10*3/mm3,0.001,0.0,,2,Neutrophils [#/volume] in Blood by Automated count
+10*3/mm3,10*3/uL,1.0,0.0,,5,Eosinophils [#/volume] in Blood by Automated count
+{cells}/uL,10*3/uL,0.001,0.0,,4,Lymphocytes [#/volume] in Blood by Automated count
+10*3/mm3,10*6/mm3,0.001,0.0,,2,Reticulocytes [#/volume] in Blood by Automated count
+10*6/uL,10*6/mm3,1.0,0.0,,1,Erythrocytes [#/volume] in Blood by Automated count
+{cells}/uL,10*6/mm3,1e-06,0.0,,1,Reticulocytes [#/volume] in Blood
+[degF],Cel,0.555556,-17.7778,,1,Body temperature
+mL,L,0.001,0.0,,1,Volume in Urine collected for unspecified duration
+[iU]/L,[U]/L,1.0,0.0,,9,Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma
+[iU]/mL,[U]/mL,1.0,0.0,,1,LMW Heparin [Units/volume] in Platelet poor plasma by Chromogenic method
+10*-3.[iU]/mL,[iU]/L,1.0,0.0,,1,Erythropoietin (EPO) [Units/volume] in Serum or Plasma
+[U]/L,[iU]/L,1.0,0.0,,3,Lactate dehydrogenase [Enzymatic activity/volume] in Body fluid by Lactate to pyruvate reaction
+10*3.[U]/L,[iU]/mL,1.0,0.0,,1,IgE [Units/volume] in Serum or Plasma
+10*3.[iU]/L,[iU]/mL,1.0,0.0,,1,IgE [Mass/volume] in Serum
+[U]/mL,[iU]/mL,1.0,0.0,,2,Thyroglobulin Ab [Units/volume] in Serum or Plasma
+Gy,cGy,100.0,0.0,,4,
+[in_us],cm,2.54,0.0,,1,Body height
+mg/(24.h),g/(24.h),0.001,0.0,,1,Urea nitrogen [Mass/time] in 24 hour Urine
+mg/dL,g/dL,0.001,0.0,,2,Protein [Mass/volume] in Body fluid
+[lb_us],kg,0.453592,0.0,,5,Body weight
+[oz_av],kg,0.02835,0.0,,2,Body weight
+L,mL,1000.0,0.0,,1,Volume of 24 hour Urine
+g/(24.h),mg/(24.h),1000.0,0.0,,3,Protein [Mass/time] in 24 hour Urine
+mg/dL,mg/L,10.0,0.0,,4,C reactive protein [Mass/volume] in Serum or Plasma
+ug/dL,mg/L,0.01,0.0,,1,Retinol [Mass/volume] in Serum or Plasma
+ug/mL,mg/L,1.0,0.0,,1,Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
+g/L,mg/dL,100.0,0.0,,1,Creatinine [Mass/volume] in Urine
+mg/L,mg/dL,0.1,0.0,,5,Albumin [Mass/volume] in Urine
+mg/dL{calc},mg/dL,1.0,0.0,,4,Cholesterol non HDL [Mass/volume] in Serum or Plasma
+mmol/L,mg/dL,10.41,0.0,beta_hydroxybutyrate,1,Beta hydroxybutyrate [Mass/volume] in Serum or Plasma
+mmol/L,mg/dL,2.4305,0.0,magnesium,1,Magnesium [Moles/volume] in Red Blood Cells
+ug/mL,mg/dL,0.1,0.0,,3,Microalbumin [Mass/volume] in Urine
+mg/mg{creat},mg/g{creat},1000.0,0.0,,1,Protein/Creatinine [Mass Ratio] in Urine
+ug/mg,mg/g{creat},1.0,0.0,,1,
+ug/mg{creat},mg/g{creat},1.0,0.0,,1,Albumin/Creatinine [Mass Ratio] in Urine
+mg/g,mg/mg,0.001,0.0,,1,
+mg/g{creat},mg/mg,0.001,0.0,,1,
+10*-3.eq/L,mmol/L,1.0,0.0,anion_gap,3,Anion gap in Serum or Plasma by calculation
+10*-3.eq/L,mmol/L,1.0,0.0,base_excess,2,Base excess in Venous blood by calculation
+10*-3.eq/L,mmol/L,1.0,0.0,bicarbonate,6,"Carbon dioxide, total [Moles/volume] in Serum or Plasma"
+10*-3.eq/L,mmol/L,1.0,0.0,chloride,4,Chloride [Moles/volume] in Serum or Plasma
+10*-3.eq/L,mmol/L,1.0,0.0,potassium,3,Potassium [Moles/volume] in Serum or Plasma
+10*-3.eq/L,mmol/L,1.0,0.0,sodium,4,Sodium [Moles/volume] in Serum or Plasma
+mg/dL,mmol/L,0.111012,0.0,lactate,1,Lactate [Mass/volume] in Serum or Plasma
+nmol/mL,mmol/L,0.001,0.0,,1,Lactate [Moles/volume] in Serum or Plasma
+a,mo,12.0,0.0,,1,
+mosm/kg,mosm/kg{H20},1.0,0.0,,2,Osmolality of Urine
+ng/mL,ng/dL,100.0,0.0,,1,Triiodothyronine (T3) [Mass/volume] in Serum or Plasma
+ng/dL,ng/mL,0.01,0.0,,2,Testosterone [Mass/volume] in Serum or Plasma
+ug/L,ng/mL,1.0,0.0,,2,Tacrolimus [Mass/volume] in Blood
+mg{FEU}/L,ng{FEU}/mL,1000.0,0.0,,1,Fibrin D-dimer FEU [Mass/volume] in Platelet poor plasma
+ng/mL,nmol/L,5.910864,0.0,pyridoxine,1,Pyridoxine [Mass/volume] in Serum or Plasma
+ug/L,nmol/L,5.910864,0.0,pyridoxine,1,Pyridoxine [Mass/volume] in Serum or Plasma
+ng/dL,pg/mL,10.0,0.0,,1,Testosterone Free [Mass/volume] in Serum or Plasma
+ng/mL,ug/L,1.0,0.0,,1,Tacrolimus [Mass/volume] in Blood by LC/MS/MS
+ng/dL,ug/dL,0.001,0.0,,1,Cortisol [Mass/volume] in Saliva (oral fluid)
+ng/mL,ug/dL,0.1,0.0,,1,Dehydroepiandrosterone sulfate (DHEA-S) [Mass/volume] in Serum or Plasma
+mg/L,ug/mL,1.0,0.0,,2,Valproate [Mass/volume] in Serum or Plasma
+ng/mL,ug/mL,0.001,0.0,,1,
+nmol/L,umol/L,0.001,0.0,,2,Methylmalonate [Moles/volume] in Serum or Plasma
+/mm3,{cells}/uL,1.0,0.0,,2,CD3+CD4+ (T4 helper) cells [#/volume] in Blood
+/uL,{cells}/uL,1.0,0.0,,2,CD3+CD4+ (T4 helper) cells [#/volume] in Blood
+/min,{counts}/min,1.0,0.0,,1,Respiratory rate
+[ratio'U],{ratio},1.0,0.0,,2,Cholesterol.total/Cholesterol in HDL [Mass Ratio] in Serum or Plasma
+{calc},{ratio},1.0,0.0,,4,Albumin/Globulin [Mass Ratio] in Serum or Plasma

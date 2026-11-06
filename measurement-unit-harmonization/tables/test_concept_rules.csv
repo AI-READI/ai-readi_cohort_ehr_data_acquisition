@@ -1,0 +1,39 @@
+concept_id,concept_name,rule,unit,note
+3034485,Albumin/Creatinine [Mass Ratio] in Urine,explicit,mg/g{creat},Albumin/Creatinine: values fit mg/g; in mg/mmol they would be implausible
+3020509,Albumin/Globulin [Mass Ratio] in Serum or Plasma,explicit,{ratio},Albumin/Globulin ratio
+3046867,Alpha 1 antitrypsin phenotype [Interpretation] in Serum or Plasma,suspect_concept,,Alpha 1 antitrypsin phenotype [Interpretation]: holds values and ranges of an IgA result
+40757349,CD3+CD4+ (T4 helper) cells/CD3+CD8+ (T8 suppressor cells) cells [# Ratio] in Blood,explicit,{ratio},CD4/CD8 ratio
+3037816,CD4+CD8+ cells/cells in Blood,suspect_concept,,CD4+CD8+ cells/cells: range 0.8-4.2 and values look like a CD4/CD8 ratio
+3031809,Calcium hydrogen phosphate dihydrate [Saturation Fraction] in 24 hour Urine,explicit,{fraction},Calcium hydrogen phosphate saturation fraction
+3032612,Calcium oxalate index in 24 hour Urine,explicit,{index},"Calcium oxalate index, 24h urine"
+3011163,Cholesterol.total/Cholesterol in HDL [Mass Ratio] in Serum or Plasma,explicit,{ratio},"Total/HDL cholesterol ratio, including the records corrected from 3023884 (cell 1d); set here so labeled mg/dL records are not copied"
+21492175,Heart transplant acute cellular rejection risk [Score] in Mononuclear cells Calculated by AlloMap,explicit,[score],AlloMap score
+3043722,Hyaline casts [#/area] in Urine sediment by Automated count,explicit,/[LPF],Hyaline casts [#/area]: per low power field
+3032080,INR in Blood by Coagulation assay,explicit,{ratio},INR in Blood
+3051593,INR in Capillary blood by Coagulation assay,explicit,{ratio},INR in Capillary blood
+3022217,INR in Platelet poor plasma by Coagulation assay,explicit,{ratio},INR in Platelet poor plasma
+3021492,IgG/Albumin [Mass Ratio] in Serum,explicit,{ratio},IgG/Albumin ratio
+3053209,Kappa light chains.free/Lambda light chains.free [Mass Ratio] in Serum,explicit,{ratio},Kappa/Lambda free light chain ratio
+3000034,Microalbumin [Mass/volume] in Urine,explicit,mg/L,Microalbumin [Mass/volume] in Urine: range 5-20 fits mg/L
+3045462,Protein/Creatinine [Ratio] in Urine,explicit,mg/mg{creat},Protein/Creatinine [Ratio]: range_high 0.2 implies mg/mg
+3034426,Prothrombin time (PT),explicit,s,Prothrombin time: range 9.2-12.1 is seconds
+3033543,Specific gravity of Urine,no_ucum_unit,,Specific gravity of Urine
+3039919,Specific gravity of Urine by Automated test strip,no_ucum_unit,,Specific gravity of Urine by Automated test strip
+3019150,Specific gravity of Urine by Refractometry,no_ucum_unit,,Specific gravity of Urine by Refractometry
+3029991,Specific gravity of Urine by Refractometry automated,no_ucum_unit,,Specific gravity of Urine by Refractometry automated
+3000330,Specific gravity of Urine by Test strip,no_ucum_unit,,Specific gravity of Urine by Test strip
+3016991,Thyroxine (T4) [Mass/volume] in Serum or Plasma,suspect_concept,,Thyroxine (T4) total: ranges and values are those of free T4 in ng/dL
+3000551,Thyroxine (T4) free index in Serum or Plasma by calculation,explicit,{index},T4 free index
+3018311,Urea nitrogen/Creatinine [Mass Ratio] in Serum or Plasma,explicit,{ratio},BUN/Creatinine ratio
+3015501,pH of 24 hour Urine,explicit,pH,pH of 24 hour Urine
+3019977,pH of Arterial blood,explicit,pH,pH of Arterial blood
+3029473,pH of Arterial blood adjusted to patient's actual temperature,explicit,pH,"pH of Arterial blood, temp adjusted"
+3030109,pH of Arterial cord blood adjusted to patient's actual temperature,explicit,pH,"pH of Arterial cord blood, temp adjusted"
+3030091,pH of Blood adjusted to patient's actual temperature,explicit,pH,"pH of Blood, temp adjusted"
+3018672,pH of Body fluid,explicit,pH,pH of Body fluid
+3015736,pH of Urine,explicit,pH,pH of Urine
+3029305,pH of Urine by Automated test strip,explicit,pH,pH of Urine by Automated test strip
+3022621,pH of Urine by Test strip,explicit,pH,pH of Urine by Test strip
+3012544,pH of Venous blood,explicit,pH,pH of Venous blood
+3038999,pH of Venous blood adjusted to patient's actual temperature,explicit,pH,"pH of Venous blood, temp adjusted"
+3032186,pH of Venous cord blood adjusted to patient's actual temperature,explicit,pH,"pH of Venous cord blood, temp adjusted"
