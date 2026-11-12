@@ -1,0 +1,13 @@
+xwalk_id,source_table,source_concept_id,source_concept_name,value_regex,target_concept_id,target_concept_name,resolved_target_domain_id,target_unit_concept_id,target_unit_source_value,parse_number_regex,expected_rows,note
+1,observation,4126842,Size of needle,^\s*\d+\s*gauge\s*$,42537416,Hemodialysis needle gauge,Measurement,0,gauge,^\s*(\d+)\s*gauge,,15-17G = dialysis fistula needles; no standard gauge unit (do not use 9312 [G])
+2,observation,4126840,Size of catheter,^\s*\d+\s*(Fr|French)\s*$,0,No matching concept,,9279,Fr,^\s*(\d+)\s*(Fr|French),,Chest tube/drain French size; no standard size concept; 9279 = [Ch] charriere french
+3,observation,4126840,Size of catheter,^\s*Other:,3018480,Type of Chest tube,Measurement,,,,,Free-text tube type/location (PCT; MSCT; Blake); text kept in value_source_value
+4,observation,4118340,Traction weight applied,,0,No matching concept,,,,,,No standard Measurement/Observation equivalent
+5,observation,4128808,Number of oxygenators,,0,No matching concept,,,,,,No standard Measurement/Observation equivalent
+6,device_exposure,36310218,Pacemaker,,4030875,Cardiac pacemaker,Device,,,,,Generic parent; subtype not determinable without UDI
+7,device_exposure,45876963,IUD,,40355609,Intrauterine contraceptive device,Device,,,,,
+8,device_exposure,36310617,Mesh,,45768044,Surgical mesh,Device,,,,,
+10,device_exposure,45880118,Bone,,0,No matching concept,,,,,,Ambiguous without UDI
+13,device_exposure,45881899,Breast,,0,No matching concept,,,,,,Ambiguous without UDI
+14,device_exposure,45883584,Patella,,0,No matching concept,,,,,,Ambiguous without UDI
+15,device_exposure,37079420,Nail,,0,No matching concept,,,,,,Ambiguous without UDI
