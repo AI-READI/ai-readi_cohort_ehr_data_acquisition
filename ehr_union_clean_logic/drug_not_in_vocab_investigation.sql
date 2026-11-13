@@ -1,3 +1,11 @@
+
+-- Drug "not in vocab" check (read-only). Run before switching the pipeline to a new vocabulary release.
+-- Lists drug_concept_id values in ehr_union_clean.drug_exposure that are missing from the current vocabulary
+-- (<old_vocab>, e.g. omop_vocab) and shows whether a newer release (<new_vocab>) has them and where they map.
+-- Expected: mostly NDC (11-digit NDC) concepts added after the current release, 'found, maps to RxNorm ...';
+-- 'still missing' close to 0.
+-- Replace <old_vocab> and <new_vocab>.
+
 WITH niv AS (   -- IDs missing from the current vocabulary
   SELECT d.drug_concept_id, COUNT(*) AS n_rows
   FROM ehr_union_clean.drug_exposure d
