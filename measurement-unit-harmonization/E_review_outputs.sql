@@ -74,7 +74,7 @@ ORDER BY decision, n DESC;
 
 -- 5a (Part A). Review: how many groups and records each method covers
 --     Expect: n_records total 205,116; explicit 22,853 (pH, INR, ratios,
---     indexes); no_ucum_unit 9,037 (specific gravity only); suspect_concept 82.
+--     indexes); no_ucum_unit 9,037 (specific gravity only); suspect_concept about 80.
 --     no_concept rows are the concept-0 groups that 8b decides.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions
@@ -573,7 +573,7 @@ ORDER BY n_numeric DESC, l.concept_name;
 --    Expect:
 --      has unit concept: copied_from_unit_concept_id only, 5,704,371
 --      A: total 205,116; unit methods 195,400; no_ucum_unit 9,628 (specific
---         gravity); suspect_concept 82; needs_review plus no_concept under 11
+--         gravity); suspect_concept, needs_review and no_concept together 88
 --      B: total 55,255; mapped_string 54,544; unmapped_string plus
 --         no_ucum_unit 437 (no_ucum_unit under 11: ACTIVITY COEFF);
 --         not_a_unit 274

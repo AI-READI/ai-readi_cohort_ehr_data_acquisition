@@ -216,9 +216,8 @@ and [D](D_unit_conversion.sql), each with its reason.
 | Records | Count | `unit_inference_method` | See | Change |
 |---|---:|---|---|---|
 | Codes and identifiers stored as numbers | 3,789 | not_a_quantity | E 15b | C 14 |
-| Small tests with no rule yet | 650 | needs_review, no_concept | E 15c, E 5b, E 8b | C 14, A 2, A 7 |
 | Unit text nothing maps, or with no UCUM unit | 437 | unmapped_string, no_ucum_unit | E6, E 11b | A 1g |
-| Values that don't fit their test | 307 | suspect_concept | E 15d, E 15e, E 5b | C 14c, A 2 |
+| Values that don't fit their test, or small tests with no rule yet | 957 | suspect_concept, needs_review, no_concept | E 15c, E 15d, E 15e, E 5b, E 8b | C 14, C 14c, A 2, A 7 |
 | Junk in the unit field | 274 | not_a_unit | E 11c | A 1g |
 | A correction leaves no unit | 14 | the method that set the unit first | E 17f | A 1g |
 
@@ -276,10 +275,13 @@ raw.githubusercontent.com.
    `ref_files/G_rule_tables.ipynb`, and run
    [make_tables.py](make_tables.py).
 
-In the production pipeline, 0, A, B, C, D and the gate go in the job for steps
-11-12, as tasks after
+In the production pipeline, 0, A, B, C, D and the gate are to be added to the
+job for steps 11-12, as tasks after
 [drop orphan.sql](../ehr_data_harmonization_pipeline/12-union-clean/drop%20orphan.sql),
-the last step to change `ehr_union_clean.measurement`. E, F and G are run by
+the last step to change `ehr_union_clean.measurement`. That job is kept in
+Databricks, not in
+[omop_workflow_definition.yaml](../ehr_data_harmonization_pipeline/omop_workflow_definition.yaml),
+which stops at step 10. E, F and G are run by
 hand. Nothing here reaches the release, because step 13 exports only
 `ehr_union_clean`. `ehr_union_clean_mactel.measurement` isn't harmonized.
 
