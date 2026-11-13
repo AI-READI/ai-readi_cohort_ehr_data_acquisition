@@ -539,7 +539,7 @@ GROUP BY 1 ORDER BY n DESC;
 --      unit, the canonical unit next to the list's, and value_plausibility
 --      counts; limits are in the canonical unit. not_checked: numeric
 --      records with no harmonized value (no unit, no conversion, suspect).
---      Expect: 57 rows, 44 of them with records; not_checked 0 on the
+--      Expect: 55 rows, 44 of them with records; not_checked 0 on the
 --      rows without. Canonical units differ from the list's only as
 --      equivalent codes (mmol/L for mEq/L, [U]/L for IU/L). Implausible counts mostly in vitals: heart
 --      rate 1,733, systolic BP 1,477 (most from one partner), body weight
@@ -667,3 +667,75 @@ SELECT unit_source_value, n, tests, median
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text' AND decision = 'unmapped'
 ORDER BY n DESC;
+
+-- COMMAND ----------
+
+-- E7. Chart data: unit outcomes per lab on the REDCap list, for the status
+--    chart in charts/make_charts.py (after Bradwell et al., JAMIA 2022,
+--    doi 10.1093/jamia/ocac054). One bar per lab concept: the lookup's lab
+--    rows (forms imported and lab_results; the two LDL rows share one
+--    concept), matched by harmonized concept, numeric records, all partners
+--    pooled. Segments, first match wins:
+--      nonsensical         unit text isn't a unit, the value isn't a
+--                          quantity, or a correction left no unit
+--      no_ucum_unit        no UCUM unit exists; value kept as recorded
+--      unable_to_infer     no unit found
+--      no_conversion       has a unit, no conversion to the canonical unit
+--      source_canonical    arrived with a unit concept, already canonical
+--      source_converted    arrived with a unit concept, converted
+--      text_mapped         unit text mapped to a unit (Part B)
+--      inferred_canonical  unit inferred, already canonical
+--      inferred_converted  unit inferred, converted
+--      suppressed          segments under 11 records, merged; when they
+--                          total under 11, the lab's next smallest segment
+--                          joins them
+--    Labs with under 11 numeric records are left out, as are labs with none.
+--    This is the only per-lab table meant for sharing: check any other
+--    per-lab counts against it before publishing them (20d's counts would
+--    give back suppressed segments by subtraction).
+--    Export the result as charts/lab_unit_outcomes.csv.
+WITH labs AS (
+  SELECT try_cast(target_concept_id AS BIGINT) AS concept_id,
+         array_join(sort_array(collect_set(lookup_key)), ', ') AS fields
+  FROM hive_metastore.ehr_union_clean_metrics.redcap_unit_lookup
+  WHERE form_name IN ('imported', 'lab_results')
+  GROUP BY 1
+),
+seg AS (
+  SELECT l.concept_id, l.fields,
+         CASE WHEN t.unit_inference_method IN ('not_a_unit', 'not_a_quantity')
+                OR (t.unit_corrected_from IS NOT NULL
+                    AND COALESCE(t.inferred_unit_concept_id, 0) = 0) THEN 'nonsensical'
+              WHEN t.unit_inference_method = 'no_ucum_unit'          THEN 'no_ucum_unit'
+              WHEN COALESCE(t.inferred_unit_concept_id, 0) = 0       THEN 'unable_to_infer'
+              WHEN t.harmonized_value_as_number IS NULL              THEN 'no_conversion'
+              WHEN COALESCE(t.unit_concept_id, 0) <> 0
+                THEN IF(t.unit_conversion_method = 'identity', 'source_canonical', 'source_converted')
+              WHEN t.unit_inference_method = 'mapped_string'         THEN 'text_mapped'
+              ELSE IF(t.unit_conversion_method = 'identity', 'inferred_canonical', 'inferred_converted')
+         END AS segment,
+         COUNT(*) AS n
+  FROM labs l
+  JOIN hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+    ON t.harmonized_measurement_concept_id = l.concept_id AND t.value_as_number IS NOT NULL
+  GROUP BY 1, 2, 3
+),
+marked AS (
+  SELECT *,
+         SUM(n) OVER (PARTITION BY concept_id) AS n_total,
+         SUM(IF(n < 11, n, 0)) OVER (PARTITION BY concept_id) AS n_small,
+         ROW_NUMBER() OVER (PARTITION BY concept_id, n < 11 ORDER BY n, segment) AS size_rank
+  FROM seg
+),
+merged AS (
+  SELECT concept_id, fields, n_total, n,
+         IF(n < 11 OR (n_small BETWEEN 1 AND 10 AND size_rank = 1), 'suppressed', segment) AS segment
+  FROM marked
+  WHERE n_total >= 11
+)
+SELECT m.concept_id, c.concept_name, m.fields, m.segment,
+       SUM(m.n) AS n, m.n_total, round(100 * SUM(m.n) / m.n_total, 2) AS pct
+FROM merged m
+JOIN omop_vocab.concept c ON c.concept_id = m.concept_id
+GROUP BY m.concept_id, c.concept_name, m.fields, m.segment, m.n_total
+ORDER BY m.n_total DESC, m.concept_id, n DESC;

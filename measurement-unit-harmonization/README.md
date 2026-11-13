@@ -189,9 +189,6 @@ set it.
     The upper limits sit far above nearly all EHR and survey values.
   - The list's uACR concept 3020682 has no EHR records. The data is under
     3034485 and 3001802.
-  - `import_buncreatinineratio` holds creatinine/BUN in the survey data,
-    matching its concept 3033837. EHR ratios are BUN/creatinine, under 3018311,
-    so the two aren't directly comparable.
   - The list's insulin concept 3022466 has no EHR records. EHR insulin is under
     3009413 and 3016244, in uIU/mL.
   - The list's labels differ from our UCUM codes for Na, K, Cl and total CO2
