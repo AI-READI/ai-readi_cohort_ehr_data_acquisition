@@ -107,8 +107,9 @@ ORDER BY unit_inference_method, n DESC;
 -- 11b (Part B). Review: unit_mapping's text rows by decision and
 --      source.
 --      Expect: 55,255 records in all. Unit 54,544 (judgment 35,762,
---      ucum_code 14,483, arrived_unit 4,258, maps_to 41); unmapped 436;
---      not_a_unit 274; no_ucum_unit 1; no review rows.
+--      ucum_code 14,483, arrived_unit 4,258, maps_to 41); unmapped plus
+--      no_ucum_unit 437 (no_ucum_unit under 11); not_a_unit 274; no
+--      review rows.
 SELECT decision, source, matched_by, COUNT(*) AS n_texts, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text'
@@ -515,11 +516,11 @@ ORDER BY n DESC;
 -- COMMAND ----------
 
 -- 20a (Part D). Review: numeric records by harmonization status.
---      Expect: in canonical unit 6,993,280; no UCUM unit exists 24,413
---      (specific gravity, counts, Ct values, activity coefficients, RAST
---      class); failed to find unit 5,470 (E1's methods that leave no unit,
---      5,456, plus 14 records a correction leaves with no unit); has unit,
---      no conversion 4,643 (19d, including INR's seconds records).
+--      Expect: in canonical unit 6,993,280; no UCUM unit exists plus
+--      failed to find unit 29,883 (no UCUM unit: specific gravity, counts,
+--      Ct values, activity coefficients, RAST class; failed: E1's methods
+--      that leave no unit, plus 14 records a correction leaves with no
+--      unit); has unit, no conversion 4,643 (19d, including INR's seconds records).
 SELECT CASE WHEN canonical_unit_concept_id IS NOT NULL  THEN 'in canonical unit'
             WHEN harmonized_value_as_number IS NOT NULL THEN 'no UCUM unit exists'
             WHEN COALESCE(inferred_unit_concept_id, 0) <> 0 THEN 'has unit, no conversion'
@@ -573,8 +574,9 @@ ORDER BY n_numeric DESC, l.concept_name;
 --      has unit concept: copied_from_unit_concept_id only, 5,704,371
 --      A: total 205,116; unit methods 195,400; no_ucum_unit 9,628 (specific
 --         gravity); suspect_concept 82; needs_review plus no_concept under 11
---      B: total 55,255; mapped_string 54,544; unmapped_string 436;
---         not_a_unit 274; no_ucum_unit 1 (ACTIVITY COEFF)
+--      B: total 55,255; mapped_string 54,544; unmapped_string plus
+--         no_ucum_unit 437 (no_ucum_unit under 11: ACTIVITY COEFF);
+--         not_a_unit 274
 --      C: total 1,063,064; explicit 968,631 (the 6,457 HDL/total records
 --         among them, {ratio} under 3011163); no_ucum_unit 14,784; partner_unit
 --         plus dataset_unit 74,172; source_name 479; not_a_quantity 3,789;
@@ -660,7 +662,7 @@ GROUP BY 1, 2;
 -- E6 (the unmapped rows of 11c). Review: unit text no
 --    source or judgment row maps. Records get inferred unit 0 and no
 --    conversion, so anything a judgment row could map belongs in 1g.
---    Expect: 37 texts on 436 records.
+--    Expect: 37 texts on about 440 records.
 SELECT unit_source_value, n, tests, median
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text' AND decision = 'unmapped'

@@ -16,9 +16,8 @@ Nothing identifying goes in the repo:
 - No medians or record values in rationales or notes.
 - Docs report no count under 11. Merge the row or cell instead, and check that
   totals don't give it back. Low counts aren't PHI; this avoids inviting
-  curiosity. So a low count can be shown where hiding it would obscure what
-  the numbers mean and its values aren't easy to infer (Siggie's call), as with
-  Part B's one `no_ucum_unit` record.
+  curiosity. E's expectation comments follow the same rule. Part B's
+  `no_ucum_unit` records are counted with B's failures for this reason.
 - Read every CSV from [make_tables.py](make_tables.py) before committing it.
   `ref_files/` is excluded from git; `tables/` isn't.
 

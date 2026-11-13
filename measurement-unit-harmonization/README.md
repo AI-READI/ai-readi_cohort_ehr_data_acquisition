@@ -13,11 +13,14 @@ Every numeric record, by how it arrived and where it ended up:
 | Arrived with | Records | Has a unit now | No UCUM unit exists | Failed to find unit |
 |---|---:|---:|---:|---:|
 | A unit concept | 5,704,371 | 5,704,371 | 0 | 0 |
-| Unit text only | 55,255 | 54,544 | 1 | 710 |
+| Unit text only | 55,255 | 54,544 | | 711\* |
 | No unit, reference range | 205,116 | 195,400 | 9,628 | 88 |
 | No unit, no range | 1,063,064 | 1,043,622 | 14,784 | 4,658 |
 | *Unit removed by a correction* | | -14 | | +14 |
-| **Total** | **7,027,806** | **6,997,923** | **24,413** | **5,470** |
+| **Total** | **7,027,806** | **6,997,923** | **24,412** | **5,471** |
+
+\* Includes Part B's records with no UCUM unit (under 11), counted here so
+the table holds no count under 11.
 
 Counts are from the 2026-11-03 run.
 
@@ -38,13 +41,13 @@ were converted to it. How that works is in
 
 | What | Records | Where it comes from |
 |---|---:|---|
-| [No unit found](#no-unit-found) | 5,470 | "Failed to find unit" in the [first table](#units-inferred) |
+| [No unit found](#no-unit-found) | 5,471 | "Failed to find unit" in the [first table](#units-inferred) |
 | [Has a unit, can't convert](#has-a-unit-cant-convert) | 4,643 | "No fixed conversion" in the [chart above](#values-converted) |
 | [Values flagged implausible](#values-flagged-implausible-or-extreme) | 4,300 | Outside the REDCap list's plausible limits |
 | [Values flagged extreme](#values-flagged-implausible-or-extreme) | 24,426 | Inside those limits, outside the usual range |
 
 Each link gives the breakdown, the cell that shows those records, and where to
-change them. The 24,413 records with no UCUM unit aren't failures: specific
+change them. The 24,412 records with no UCUM unit aren't failures: specific
 gravity, counts, Ct values and the like, kept as recorded. Open questions are
 in [Known issues](#known-issues).
 
@@ -207,14 +210,14 @@ and [D](D_unit_conversion.sql), each with its reason.
 
 ### No unit found
 
-5,470 records have no unit, by the `unit_inference_method` that
+5,471 records have no unit, by the `unit_inference_method` that
 [Appendix A](#appendix-a-records-by-method) counts them under:
 
 | Records | Count | `unit_inference_method` | See | Change |
 |---|---:|---|---|---|
 | Codes and identifiers stored as numbers | 3,789 | not_a_quantity | E 15b | C 14 |
 | Small tests with no rule yet | 650 | needs_review, no_concept | E 15c, E 5b, E 8b | C 14, A 2, A 7 |
-| Unit text nothing maps | 436 | unmapped_string | E6 | A 1g |
+| Unit text nothing maps, or with no UCUM unit | 437 | unmapped_string, no_ucum_unit | E6, E 11b | A 1g |
 | Values that don't fit their test | 307 | suspect_concept | E 15d, E 15e, E 5b | C 14c, A 2 |
 | Junk in the unit field | 274 | not_a_unit | E 11c | A 1g |
 | A correction leaves no unit | 14 | the method that set the unit first | E 17f | A 1g |
@@ -324,10 +327,9 @@ are merged where a count would be under 11.
 | Unit | partner_unit | A | Copied from labeled records of the same test, same partner; medians must agree within a factor of 2 | 160 |
 | No UCUM unit exists | no_ucum_unit | C | Rule on the test name (counts, Ct values, RAST class) | 14,784 |
 | No UCUM unit exists | no_ucum_unit | A | Specific gravity | 9,628 |
-| No UCUM unit exists | no_ucum_unit | B | Activity coefficient | 1 |
 | Failed to find unit | not_a_quantity | C | Codes and IDs stored as numbers (EKG impression codes, HLA alleles, case numbers) | 3,789 |
 | Failed to find unit | needs_review | C | No rule yet | 644 |
-| Failed to find unit | unmapped_string | B | Unit text nothing maps: DL/VA units, assay-specific units such as FLU and CU, per-ejaculate counts | 436 |
+| Failed to find unit | unmapped_string, no_ucum_unit | B | Unit text nothing maps: DL/VA units, assay-specific units such as FLU and CU, per-ejaculate counts; or a quantity with no UCUM unit (activity coefficient) | 437 |
 | Failed to find unit | not_a_unit | B | Junk in the unit field ("Possible", "PharmD") | 274 |
 | Failed to find unit | suspect_concept | C | Values don't fit the test (total lung capacity stored under RV/TLC) | 225 |
 | Failed to find unit | suspect_concept, needs_review, no_concept | A | Values don't fit the test, undetermined, or no test concept and no source-name rule | 88 |
