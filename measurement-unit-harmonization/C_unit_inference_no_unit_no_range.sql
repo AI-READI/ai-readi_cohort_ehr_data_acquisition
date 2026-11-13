@@ -39,6 +39,7 @@
 
 
 -- ===== C0. Sizing =====
+-- Reviews: 13b, 13c, 13d, in E_review_outputs.sql.
 
 -- 13. Records in scope, and the records that can serve as evidence for them
 CREATE OR REPLACE VIEW hive_metastore.ehr_union_clean_metrics.unit_no_range_records AS
@@ -61,78 +62,11 @@ WHERE effective_unit_concept_id IS NOT NULL
            AND COALESCE(unit_concept_id, 0) = 0
            AND range_high IS NULL);
 
--- 13b. Review: overall shape
-SELECT CASE WHEN COALESCE(r.harmonized_measurement_concept_id, 0) = 0 THEN 'concept 0'
-            ELSE 'has concept' END AS concept,
-       mt.concept_name AS measurement_type,
-       r.range_low IS NOT NULL AS has_range_low,
-       COUNT(*) AS n,
-       COUNT(DISTINCT r.test_id) AS n_tests,
-       COUNT(DISTINCT r.data_partner_id) AS n_partners
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
-LEFT JOIN omop_vocab.concept mt ON mt.concept_id = r.measurement_type_concept_id
-GROUP BY 1, 2, 3
-ORDER BY n DESC;
-
 -- COMMAND ----------
 
--- 13c. Review: one row per test, biggest first. cum_pct shows how many tests
---      cover most of the records. frac_integer near 1 with a small range
---      or few distinct values suggest a score; n_evidence is how many
---      records of the same test have a unit to copy.
---      (The table has no value_source_value column.)
-WITH t AS (
-  SELECT r.test_id, r.test_name,
-         COUNT(*) AS n,
-         COUNT(DISTINCT r.data_partner_id) AS n_partners,
-         percentile_approx(r.value_as_number, array(0.05, 0.5, 0.95)) AS pct,
-         min(r.value_as_number) AS min_value,
-         max(r.value_as_number) AS max_value,
-         avg(CASE WHEN r.value_as_number = floor(r.value_as_number) THEN 1D ELSE 0D END) AS frac_integer,
-         COUNT(DISTINCT r.value_as_number) AS n_distinct
-  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
-  GROUP BY r.test_id, r.test_name
-),
-ev AS (
-  SELECT test_id, COUNT(*) AS n_evidence
-  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_evidence
-  WHERE test_id IN (SELECT test_id FROM t)
-  GROUP BY 1
-)
-SELECT t.test_name, t.test_id, t.n,
-       round(100 * SUM(t.n) OVER (ORDER BY t.n DESC ROWS UNBOUNDED PRECEDING)
-                 / SUM(t.n) OVER (), 1) AS cum_pct,
-       t.n_partners, t.min_value, t.pct[0] AS p05, t.pct[1] AS median, t.pct[2] AS p95,
-       t.max_value, round(t.frac_integer, 2) AS frac_integer, t.n_distinct,
-       COALESCE(ev.n_evidence, 0) AS n_evidence
-FROM t
-LEFT JOIN ev ON ev.test_id = t.test_id
-ORDER BY t.n DESC;
-
--- COMMAND ----------
-
--- 13d. Lookup: OMOP UCUM spellings for units the name rules need.
---      'data' rows: the unit concepts that unit strings like dynes-sec/cm5
---      and mph already carry in the table. 'UCUM' rows: candidate concepts.
---      Rules 45 and 46 in cell 14 (SVR) use the codes found here (OMOP
---      spells the two inconsistently: dyn.sec/cm5, dyn.s/cm5/m2). There is
---      no mile-per-hour concept, so Treadmill MPH has no rule.
-SELECT 'data' AS src, m.unit_source_value AS unit_string, u.concept_id, u.concept_code,
-       u.concept_name, u.vocabulary_id, u.invalid_reason, COUNT(*) AS n
-FROM ehr_union_clean.measurement m
-JOIN omop_vocab.concept u ON u.concept_id = m.unit_concept_id
-WHERE m.unit_source_value RLIKE '(?i)dyn|mph|mi/h|mile'
-GROUP BY 1, 2, 3, 4, 5, 6, 7
-UNION ALL
-SELECT 'UCUM', NULL, concept_id, concept_code, concept_name, vocabulary_id, invalid_reason, NULL
-FROM omop_vocab.concept
-WHERE vocabulary_id = 'UCUM'
-  AND (concept_code RLIKE 'dyn|mi_' OR concept_name RLIKE '(?i)dyne|mile')
-ORDER BY src, n DESC, concept_code;
-
--- COMMAND ----------
-
--- ===== C1. Hand rules by test name. Last result: check, should be empty =====
+-- ===== C1. Hand rules by test name =====
+-- Check: 14a, in E_gate_checks.sql.
+-- Review: 14b, in E_review_outputs.sql.
 
 -- 14. Rules on the test name (concept name, or source value for concept 0).
 --     Java regexes; lowest priority wins. (?i) covers the whole pattern, so
@@ -218,29 +152,9 @@ SELECT * FROM VALUES
   (48, '(?i)^residual volume/total capacity',               'value_split', NULL, 'RV/TLC % paired with TLC in L (15f)')
 AS t(priority, test_pattern, rule, unit_code, note);
 
--- 14a. Check: explicit rules without a valid UCUM code, and the reverse
-SELECT r.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_rules r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = r.unit_code
-WHERE (r.rule = 'explicit') <> (ru.concept_id IS NOT NULL);
-
 -- COMMAND ----------
 
--- 14b. Review: tests each name rule hits, with the rule that wins.
---      Look for tests a pattern catches by accident.
-WITH t AS (
-  SELECT r.test_id, r.test_name,
-         COUNT(*) AS n, percentile_approx(r.value_as_number, 0.5) AS median
-  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
-  GROUP BY r.test_id, r.test_name
-)
-SELECT ru.priority, ru.test_pattern, ru.rule, ru.unit_code, t.test_name, t.n, t.median,
-       ru.priority = min(ru.priority) OVER (PARTITION BY t.test_id) AS wins
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_rules ru
-LEFT JOIN t ON t.test_name RLIKE ru.test_pattern
-ORDER BY ru.priority, t.n DESC;
-
--- COMMAND ----------
+-- Check: 14d, in E_gate_checks.sql.
 
 -- 14c. Value bands for value_split tests: value_min <= value < value_max,
 --      NULL meaning unbounded. A test's bands must cover every value with
@@ -264,32 +178,10 @@ SELECT * FROM VALUES
   ('(?i)^residual volume/total capacity', 8D,   NULL, '%',      'value_split',  NULL)
 AS t(test_pattern, value_min, value_max, unit_code, method, note);
 
--- 14d. Check: should be empty. Bad codes, gaps, overlaps, open ends.
-WITH v AS (
-  SELECT v.*, ru.concept_id AS ucum_concept_id,
-         lag(v.value_max) OVER (PARTITION BY v.test_pattern ORDER BY v.value_min NULLS FIRST) AS prev_max,
-         ROW_NUMBER() OVER (PARTITION BY v.test_pattern ORDER BY v.value_min NULLS FIRST) AS rn,
-         COUNT(*) OVER (PARTITION BY v.test_pattern) AS n_bands
-  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_value_rules v
-  LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = v.unit_code
-)
-SELECT * FROM (
-  SELECT CASE WHEN v.unit_code IS NOT NULL AND v.ucum_concept_id IS NULL THEN 'not a UCUM code'
-              WHEN (v.method = 'value_split') <> (v.unit_code IS NOT NULL)
-                OR v.method NOT IN ('value_split', 'no_ucum_unit', 'needs_review', 'suspect_concept')
-                                                                         THEN 'method and unit_code disagree'
-              WHEN v.rn = 1 AND v.value_min IS NOT NULL                  THEN 'first band has a lower bound'
-              WHEN v.rn = v.n_bands AND v.value_max IS NOT NULL          THEN 'last band has an upper bound'
-              WHEN v.rn > 1 AND NOT (v.value_min <=> v.prev_max)         THEN 'gap or overlap with previous band'
-              WHEN v.value_min >= v.value_max                            THEN 'empty band'
-         END AS problem,
-         v.*
-  FROM v
-) WHERE problem IS NOT NULL;
-
 -- COMMAND ----------
 
 -- ===== C2. Decisions =====
+-- Reviews: 15a, 15b, 15c, 15d, 15e, 15f, in E_review_outputs.sql.
 
 -- 15. One row per (partner, test)
 CREATE OR REPLACE TABLE hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions AS
@@ -401,100 +293,6 @@ LEFT JOIN src_rule s ON s.test_id = g.test_id
 LEFT JOIN ev_units e ON e.test_id = g.test_id
 LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units hu ON hu.concept_code = h.unit_code
 LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units su ON su.concept_code = s.unit_code;
-
--- COMMAND ----------
-
--- 15a. Review: summary by method
-SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions
-GROUP BY 1
-ORDER BY n_records DESC;
-
--- COMMAND ----------
-
--- 15b. Review: every group with a unit or rule, biggest first. Compare med
---      with evidence_median, and scan evidence_units for a test that carries
---      two units close enough to both pass the factor-2 check (kg vs lb).
-SELECT d.unit_inference_method, d.test_name, d.data_partner_id, d.n,
-       d.p05, d.med, d.p95, u.concept_code AS inferred_unit,
-       d.evidence_n, d.evidence_median, d.evidence_units, d.note
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions d
-LEFT JOIN omop_vocab.concept u ON u.concept_id = d.inferred_unit_concept_id
-WHERE d.unit_inference_method <> 'needs_review'
-ORDER BY d.n DESC;
-
--- COMMAND ----------
-
--- 15c. Review: needs_review, one row per test across partners. These are
---      what the name rules (14) are for. evidence_units shows units the test
---      has elsewhere whose medians didn't fit.
-SELECT test_name, test_id, SUM(n) AS n, COUNT(*) AS n_partners,
-       min(p05) AS min_p05, percentile_approx(med, 0.5) AS med_of_medians, max(p95) AS max_p95,
-       round(sum(frac_integer * n) / SUM(n), 2) AS frac_integer,
-       max(evidence_units) AS evidence_units
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions
-WHERE unit_inference_method = 'needs_review'
-GROUP BY test_name, test_id
-ORDER BY n DESC;
-
--- COMMAND ----------
-
--- 15d. Review: value_split records by band, as the MERGE (16) will assign
---      them. Each band's medians should look like its unit; band NULL means
---      the test matched no band pattern (14c) and goes to needs_review.
-SELECT r.data_partner_id, d.test_name, v.value_min, v.value_max, v.unit_code, v.method,
-       COUNT(*) AS n, min(r.value_as_number) AS min_value,
-       percentile_approx(r.value_as_number, 0.5) AS median, max(r.value_as_number) AS max_value
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
-JOIN hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions d
-  ON  d.data_partner_id = r.data_partner_id
-  AND d.test_id = r.test_id
-  AND d.unit_inference_method = 'value_split'
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_no_range_value_rules v
-  ON  d.test_name RLIKE v.test_pattern
-  AND (v.value_min IS NULL OR r.value_as_number >= v.value_min)
-  AND (v.value_max IS NULL OR r.value_as_number <  v.value_max)
-GROUP BY 1, 2, 3, 4, 5, 6
-ORDER BY 1, 2, 3 NULLS FIRST;
-
--- COMMAND ----------
-
--- 15e. Review: Residual volume/Total capacity against the
---      lung-volume tests that have units. A median near TLC in L would
---      mean the field holds TLC, not the ratio.
-SELECT test_id, test_name, effective_unit_code AS unit,
-       range_high IS NULL AND unit_source_value IS NULL AS part_d,
-       COUNT(*) AS n,
-       percentile_approx(value_as_number, array(0.05, 0.25, 0.5, 0.75, 0.95)) AS pct
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_keyed
-WHERE test_name RLIKE '(?i)residual volume|total (lung )?capacity|^TLC|RV/TLC'
-GROUP BY test_id, test_name, effective_unit_code, 4
-ORDER BY test_name, n DESC;
-
--- COMMAND ----------
-
--- 15f. Review: RV/TLC holds two values per exam (438 = 2 x 219), one near
---      3-6 and one near 30-40. If the low one is TLC in L, then
---      100 * RV / low should equal high. One row per exam; match_2pt counts
---      exams where they agree within 2 points.
-WITH r AS (
-  SELECT person_id, measurement_date, harmonized_measurement_concept_id AS c, value_as_number AS v
-  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records
-  WHERE harmonized_measurement_concept_id IN (21493446, 21493126)  -- RV/TLC, RV
-),
-e AS (
-  SELECT person_id, measurement_date,
-         max(CASE WHEN c = 21493126 THEN v END) AS rv,
-         min(CASE WHEN c = 21493446 THEN v END) AS low,
-         max(CASE WHEN c = 21493446 THEN v END) AS high,
-         count_if(c = 21493446) AS n_ratio
-  FROM r GROUP BY 1, 2
-)
-SELECT *, round(100 * rv / low, 1) AS rv_over_low_pct,
-       count_if(abs(100 * rv / low - high) <= 2) OVER () AS match_2pt,
-       COUNT(*) OVER () AS n_exams
-FROM e
-ORDER BY person_id, measurement_date;
 
 -- COMMAND ----------
 

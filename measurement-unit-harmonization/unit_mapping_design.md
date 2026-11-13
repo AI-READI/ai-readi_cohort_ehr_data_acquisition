@@ -1,6 +1,6 @@
 # Design: one place for what unit a record is in
 
-`unit_mapping` is built in Part A, cells 1g-1p of
+`unit_mapping` is built in Part A, cells 1g-1l of
 [A_unit_inference_range_groups.sql](A_unit_inference_range_groups.sql). How
 the pipeline uses it is in [README.md](README.md).
 
@@ -59,7 +59,7 @@ written rationale, so they can be reviewed.
    `{counts}/min`), unless the text is itself a UCUM code: text `S` with a
    judgment row saying `s` stays in review, because `S` is exactly siemens.
 7. Part D only picks each test's canonical unit and converts. It writes
-   corrections into the table (17d) but doesn't decide them.
+   corrections into the table (D 17d) but doesn't decide them.
 
 ## Arrived units that aren't standard UCUM
 
@@ -82,7 +82,7 @@ standard non-UCUM units and no SNOMED, only 9 non-standard UCUM concepts,
 
 So `maps_to` is an automatic source, but not one to trust blind: our
 vocabulary swaps SMU and SGU. Also: a few records on "Hemoglobin A1c" arrived as
-`s/{CO}`; a concept-mapping error, left in 19d's no-conversion list. The rule:
+`s/{CO}`; a concept-mapping error, left in the no-conversion list (E 19d). The rule:
 
 - Non-standard arrived unit: use its "Maps to" target when that is a
   standard UCUM unit. Every `maps_to` row is listed for review with its
@@ -133,8 +133,8 @@ with their own base in `unit_factors`, like the other dimensionless codes.
 | `n`, `tests` | record count, and the tests the text or correction applies to (most records first) |
 | `median`, `test_median` | median value of the records, and the median of the top test's records, across partners, that arrived in the assigned unit, for spotting wrong mappings |
 
-The typed judgment rows are in `unit_judgments` (1g), merged in with
-`source = 'judgment'`. Case variants share one row. Review 1o lists judgment
+The typed judgment rows are in `unit_judgments` (A 1g), merged in with
+`source = 'judgment'`. Case variants share one row. E 1o lists judgment
 rows an automatic source already covers with the same unit, so they can be
 deleted.
 
