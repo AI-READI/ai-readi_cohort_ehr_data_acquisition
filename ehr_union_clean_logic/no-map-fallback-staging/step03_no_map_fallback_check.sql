@@ -19,6 +19,9 @@ WITH rows AS (
 -- 1. Rows changed by the fallback: where they are now and where step 04 will put them
 SELECT current_domain, source_domain_id, source_vocabulary_id,
        COALESCE(target_domain_id, '(stays, no table for domain)') AS target_domain_id,
+       CASE WHEN source_concept_id IS NULL OR source_concept_id = 0 THEN 'concept 0/NULL'
+            WHEN source_domain_id IS NULL THEN 'not in vocab'
+            ELSE 'in vocab, no Maps to' END AS reason,
        CASE WHEN target_domain_id IS NULL OR target_domain_id = current_domain THEN 'stays, concept 0'
             ELSE 'moves to ' || target_domain_id || ', concept 0' END AS step04_result,
        COUNT(*) AS n_rows, COUNT(DISTINCT source_concept_id) AS n_concepts
@@ -27,15 +30,24 @@ WHERE no_map_fallback = 1
 GROUP BY ALL
 ORDER BY current_domain, n_rows DESC;
 
--- 2. Still NULL target after step 03 (expected: concept 0/NULL, or concept not in the vocabulary only)
--- SELECT current_domain,
---        CASE WHEN source_concept_id IS NULL OR source_concept_id = 0 THEN 'concept 0/NULL'
---             WHEN source_domain_id IS NULL THEN 'not in vocab'
---             ELSE 'UNEXPECTED: in vocab, no Maps to, not handled' END AS reason,
---        COUNT(*) AS n_rows, COUNT(DISTINCT source_concept_id) AS n_concepts
+-- 2. Still NULL target after step 03 (expect NO rows: rule 1 sets every unmapped target to 0)
+-- SELECT current_domain, COUNT(*) AS n_rows
 -- FROM rows
 -- WHERE target_concept_id IS NULL
--- GROUP BY ALL ORDER BY current_domain, n_rows DESC;
+-- GROUP BY ALL;
 
--- 3. Device rows are not touched: 03_device_exposure should have no no_map_fallback column (expect it absent)
+-- 3. <domain>_source_concept_id not in the vocabulary after step 03 (expect NO rows: rule 2 sets them to 0)
+-- SELECT s.current_domain, COUNT(*) AS n_rows
+-- FROM (
+--   SELECT 'Condition'   AS current_domain, condition_source_concept_id   AS src FROM <site>_ingestion.03_condition_occurrence
+--   UNION ALL SELECT 'Procedure',   procedure_source_concept_id   FROM <site>_ingestion.03_procedure_occurrence
+--   UNION ALL SELECT 'Measurement', measurement_source_concept_id FROM <site>_ingestion.03_measurement
+--   UNION ALL SELECT 'Observation', observation_source_concept_id FROM <site>_ingestion.03_observation
+--   UNION ALL SELECT 'Drug',        drug_source_concept_id        FROM <site>_ingestion.03_drug_exposure
+-- ) s
+-- LEFT JOIN omop_vocab.concept c ON c.concept_id = s.src
+-- WHERE s.src IS NOT NULL AND s.src <> 0 AND c.concept_id IS NULL
+-- GROUP BY ALL;
+
+-- 4. Device rows are not touched: 03_device_exposure should have no no_map_fallback column (expect it absent)
 -- SHOW COLUMNS IN <site>_ingestion.03_device_exposure;   -- look for no_map_fallback

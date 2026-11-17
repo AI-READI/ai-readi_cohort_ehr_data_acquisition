@@ -66,6 +66,6 @@ GROUP BY ALL
 ORDER BY tbl, n_rows DESC;
 
 -- Expected after the no-map fallback:
---   * no 'no Maps to: standard concept not found' rows, except in device_exposure (not included yet)
---   * 'not in vocab' rows unchanged (pending the vocabulary-version check)
+--   * no 'no Maps to: standard concept not found' or 'not in vocab' rows, except in device_exposure
+--     (not included until the duplicate device rows are confirmed)
 --   * 'standard (maps to itself)' rows only for domains with no table and no crosswalk entry yet
