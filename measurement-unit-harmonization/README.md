@@ -37,6 +37,22 @@ were converted to it. How that works is in
 
 ![Records with a unit, by conversion to the canonical unit](charts/conversion.png)
 
+## Labs on the REDCap list
+
+One bar per lab on the REDCap list, all partners pooled, sorted by the share
+harmonization improved (unit converted, mapped or inferred). Most labs arrived
+in the canonical unit; electrolytes and blood counts had about a quarter of
+their records converted, and urine albumin and the two ratios were almost all
+improved. Nearly every record of every lab ends with a valid value. Counts are
+rounded and small segments merged, so they differ slightly from the query
+output.
+
+![Unit outcomes for REDCap-list labs](charts/lab_unit_outcomes.png)
+
+Also as [SVG](charts/lab_unit_outcomes.svg) and
+[PDF](charts/lab_unit_outcomes.pdf); the counts are in
+[lab_unit_outcomes_table.csv](charts/lab_unit_outcomes_table.csv).
+
 ## Failed or needs review
 
 | What | Records | Where it comes from |
@@ -204,6 +220,13 @@ Cells are named by notebook and number: E 15b is cell 15b of
 its number, so search the notebook for it. Rules are typed in cells of Parts
 [A](A_unit_inference_range_groups.sql), [C](C_unit_inference_no_unit_no_range.sql)
 and [D](D_unit_conversion.sql), each with its reason.
+
+Query output in Databricks has exact counts, including counts under 11. This
+README and the charts don't: a small count is merged into a neighboring row or
+segment, or rounded, so some numbers here differ slightly from what the queries
+return (e.g. the starred total under [Units inferred](#units-inferred)). E7's
+chart data does this in its SQL. Treat other query output as internal; don't
+share per-lab or per-partner counts from it without the same treatment.
 
 ### No unit found
 

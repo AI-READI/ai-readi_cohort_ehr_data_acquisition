@@ -14,10 +14,9 @@ Nothing identifying goes in the repo:
 
 - No partner ids in text. They appear only as rule keys in A's cell 1g.
 - No medians or record values in rationales or notes.
-- Docs report no count under 11. Merge the row or cell instead, and check that
-  totals don't give it back. Low counts aren't PHI; this avoids inviting
-  curiosity. E's expectation comments follow the same rule. Part B's
-  `no_ucum_unit` records are counted with B's failures for this reason.
+- Docs and E's expectation comments report no count under 11: merge it into a
+  neighbor, and make sure no subtraction of published totals recovers it. Low
+  counts aren't PHI; this avoids inviting curiosity.
 - Read every CSV from [make_tables.py](make_tables.py) before committing it.
   `ref_files/` is excluded from git; `tables/` isn't.
 

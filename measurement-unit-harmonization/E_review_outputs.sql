@@ -539,7 +539,7 @@ GROUP BY 1 ORDER BY n DESC;
 --      unit, the canonical unit next to the list's, and value_plausibility
 --      counts; limits are in the canonical unit. not_checked: numeric
 --      records with no harmonized value (no unit, no conversion, suspect).
---      Expect: 55 rows, 44 of them with records; not_checked 0 on the
+--      Expect: 55 rows, 43 of them with records; not_checked 0 on the
 --      rows without. Canonical units differ from the list's only as
 --      equivalent codes (mmol/L for mEq/L, [U]/L for IU/L). Implausible counts mostly in vitals: heart
 --      rate 1,733, systolic BP 1,477 (most from one partner), body weight
@@ -686,13 +686,16 @@ ORDER BY n DESC;
 --      text_mapped         unit text mapped to a unit (Part B)
 --      inferred_canonical  unit inferred, already canonical
 --      inferred_converted  unit inferred, converted
---      suppressed          segments under 11 records, merged; when they
---                          total under 11, the lab's next smallest segment
---                          joins them
---    Labs with under 11 numeric records are left out, as are labs with none.
+--      suppressed          segments under 11 records, merged
+--    Counts are rounded up to a multiple of 10, n_total included, so totals
+--    can't give back a small count by subtraction. A suppressed segment
+--    still under 11 after merging has n NULL. Labs with under 11 numeric
+--    records are left out, as are labs with none.
 --    This is the only per-lab table meant for sharing: check any other
 --    per-lab counts against it before publishing them (20d's counts would
 --    give back suppressed segments by subtraction).
+--    Expect: 36 labs; source_canonical the biggest segment for all but
+--    BUN/creatinine ratio and A/G ratio, which are mostly inferred.
 --    Export the result as charts/lab_unit_outcomes.csv.
 WITH labs AS (
   SELECT try_cast(target_concept_id AS BIGINT) AS concept_id,
@@ -720,22 +723,16 @@ seg AS (
     ON t.harmonized_measurement_concept_id = l.concept_id AND t.value_as_number IS NOT NULL
   GROUP BY 1, 2, 3
 ),
-marked AS (
-  SELECT *,
-         SUM(n) OVER (PARTITION BY concept_id) AS n_total,
-         SUM(IF(n < 11, n, 0)) OVER (PARTITION BY concept_id) AS n_small,
-         ROW_NUMBER() OVER (PARTITION BY concept_id, n < 11 ORDER BY n, segment) AS size_rank
-  FROM seg
-),
 merged AS (
-  SELECT concept_id, fields, n_total, n,
-         IF(n < 11 OR (n_small BETWEEN 1 AND 10 AND size_rank = 1), 'suppressed', segment) AS segment
-  FROM marked
-  WHERE n_total >= 11
+  SELECT concept_id, fields, IF(n < 11, 'suppressed', segment) AS segment, SUM(n) AS n,
+         SUM(SUM(n)) OVER (PARTITION BY concept_id) AS n_total
+  FROM seg
+  GROUP BY 1, 2, 3
 )
 SELECT m.concept_id, c.concept_name, m.fields, m.segment,
-       SUM(m.n) AS n, m.n_total, round(100 * SUM(m.n) / m.n_total, 2) AS pct
+       IF(m.n < 11, NULL, CAST(ceil(m.n / 10) * 10 AS BIGINT)) AS n,
+       CAST(ceil(m.n_total / 10) * 10 AS BIGINT) AS n_total
 FROM merged m
 JOIN omop_vocab.concept c ON c.concept_id = m.concept_id
-GROUP BY m.concept_id, c.concept_name, m.fields, m.segment, m.n_total
-ORDER BY m.n_total DESC, m.concept_id, n DESC;
+WHERE m.n_total >= 11
+ORDER BY m.n_total DESC, m.concept_id, m.n DESC;
