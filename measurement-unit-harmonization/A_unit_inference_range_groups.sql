@@ -200,10 +200,12 @@ FROM VALUES
   -- angles, resistance, exercise
   ('degrees',            'unit', 'deg',       'degrees of angle (EKG axes)'),
   ('dynes-sec/cm5/m2',   'unit', 'dyn.s/cm5/m2', 'spelling of the SVR index unit'),
+  ('(dyne*sec)/cm5',     'unit', 'dyn.s/cm5', 'spelling of the SVR unit (the index is corrected to dyn.s/cm5/m2)'),
   ('METS',               'unit', '[MET]',     'metabolic equivalents'),
   -- temperature, pressure, electrical, radiation
   ('\'C',                'unit', 'Cel',       'degrees Celsius'),
   ('cmH2O',              'unit', 'cm[H2O]',   'spelling of cm[H2O]'),
+  ('cm H2O',             'unit', 'cm[H2O]',   'spelling of cm[H2O]'),
   ('Ohms',               'unit', 'Ohm',       'plural of Ohm'),
   ('cGray',              'unit', 'cGy',       'centigray'),
   ('Gray',               'unit', 'Gy',        'gray'),
@@ -217,6 +219,7 @@ FROM VALUES
   ('mOsmol/kg',          'unit', 'mosm/kg',   'spelling of mosm/kg'),
   ('mOsm/K',             'unit', 'mosm/kg',   'mOsm/kg cut short'),
   ('mcg/mg',             'unit', 'ug/mg',     'mcg is microgram (ug)'),
+  ('mcg/g',              'unit', 'ug/g',      'mcg is microgram (ug)'),
   ('mcg/mL FEU',         'unit', 'ug{FEU}/mL', 'mcg is microgram; FEU as in ug{FEU}/mL (D-dimer)'),
   -- per creatinine
   ('ug/g creat',         'unit', 'ug/g{creat}', 'spelling of ug/g{creat}'),
@@ -242,6 +245,7 @@ FROM VALUES
   ('M/mcl',              'unit', '10*6/uL',   'million per microliter'),
   ('Leu/uL',             'unit', '/uL',       'leukocytes per uL (urine)'),
   ('cell/uL',            'unit', '/uL',       'cells per uL'),
+  ('/ ul',               'unit', '/uL',       'spelling of /uL'),
   ('million/mL',         'unit', '10*6/mL',   'million per mL'),
   ('mil sperm/mL',       'unit', '10*6/mL',   'million sperm per mL'),
   ('cp/mL',              'unit', '{copies}/mL', 'abbreviation of copies/mL'),
@@ -284,6 +288,7 @@ FROM VALUES
   ('OD',                 'unit', '[OD\'U]',   'optical density'),
   -- no UCUM unit for the quantity
   ('ACTIVITY COEFF',     'no_ucum_unit', NULL, 'activity coefficient: dimensionless, and UCUM has no unit for it'),
+  ('gauge',              'no_ucum_unit', NULL, 'needle gauge: a size number, and UCUM has no unit for it'),
   -- not a unit
   ('Urine',              'not_a_unit', NULL, 'a specimen, not a unit'),
   ('Possible',           'not_a_unit', NULL, 'a word, not a unit'),
@@ -319,12 +324,12 @@ FROM VALUES
   ('g/[dose]', '(?i)24 hour urine',   NULL, 'unit', 'g/(24.h)', 'per collection on a 24 hour urine test: per 24 hours'),
   ('{sgu}',    '(?i)^beta 2 glycoprotein 1 IgG', NULL, 'unit', '[GPI\'IgG\'U]', 'SGU is the IgG unit; every record is on the IgG test; OMOP maps it to the IgM unit'),
   ('{smu}',    '(?i)^beta 2 glycoprotein 1 IgM', NULL, 'unit', '[GPI\'IgM\'U]', 'SMU is the IgM unit; every record is on the IgM test; OMOP maps it to the IgG unit'),
+  ('dyn.s/cm5', '(?i)vascular resistance index', NULL, 'unit', 'dyn.s/cm5/m2', 'an SVR index is per m2 of body surface: the source labels it with the SVR unit'),
   -- no unit makes the values fit: the records get no unit
   ('[U]/mL',   '(?i)^mycoplasma',     NULL, 'withheld', NULL,  'no unit makes the values fit'),
   ('ug/L',     '^Creatinine .Mass/volume. in Urine$', NULL, 'withheld', NULL, 'no unit makes the values fit'),
   -- values plainly in another unit, for the partners whose medians showed
   -- it; other partners' records in the unit are left as labeled
-  ('[lb_us]',  '^Body weight$',       2084, 'unit', '[oz_av]', 'values fit body weights as ounces; another partner\'s lb records match its kg (20c)'),
   ('deg',      '(?i)temperature',     8469, 'unit', '[degF]',  'temperature values fit Fahrenheit'),
   ('m2',       '(?i)body mass index', 8469, 'unit', 'kg/m2',   'BMI values fit kg/m2'),
   ('mL/min',   '(?i)glomerular filtration|GFR', 2084, 'unit', 'mL/min/(173.10*-2.m2)', 'eGFR labeled mL/min; medians match eGFR in mL/min/1.73m2'),
