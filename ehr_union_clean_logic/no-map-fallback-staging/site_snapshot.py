@@ -29,7 +29,9 @@ SNAPSHOT_PREFIX = "03_snapshot_"
 
 
 def _col_or_null(df, name):
-    return F.col(name) if name in df.columns else F.lit(None)
+    """The column, matched case-insensitively (step 02 writes DATA_PARTNER_ID in upper case), else NULL."""
+    cols = {c.lower(): c for c in df.columns}
+    return F.col(cols[name.lower()]) if name.lower() in cols else F.lit(None)
 
 
 def snapshot_columns(df, domain, concept_col):
