@@ -1,5 +1,6 @@
 """
-No 'Maps to' fallback -- runs last in step 03, after perform_standard_mapping() and rescue_meas_value().
+No 'Maps to' fallback -- runs last in step 03, after perform_standard_mapping(), rescue_meas_value() and
+apply_concept_replacements(); write_site_snapshot() runs first and keeps what the site sent.
 
 OMOP CDM convention:
   * target side (concept_relationship): a concept with no valid 'Maps to' gets <domain>_concept_id = 0.
@@ -47,6 +48,10 @@ ROUTABLE_DOMAINS = ["Condition", "Procedure", "Measurement", "Observation", "Dru
 # Tables whose unmapped rows stay in place (concept 0) instead of moving to the source concept's domain
 # (used once device_exposure is enabled in SOURCE_CONCEPT_COL)
 KEEP_IN_TABLE = {"device_exposure": "Device"}
+
+# Rule 1: concepts that stay in the table the site sent them in (concept 0), whatever their vocabulary domain.
+# 4237085 Nitrogen dioxide: one partner's observation rows (value 3, no source value) are not drug exposures.
+KEEP_IN_PLACE_CONCEPTS = [4237085]
 
 # Tables this step applies to, with the column that holds the site's source concept.
 SOURCE_CONCEPT_COL = {
@@ -148,7 +153,9 @@ def apply_no_map_fallback(df, concept_df, domain):
     if domain in KEEP_IN_TABLE:
         new_domain = F.lit(KEEP_IN_TABLE[domain])
     else:
-        new_domain = F.when(in_vocab & F.col("source_domain_id").isin(ROUTABLE_DOMAINS), F.col("source_domain_id"))
+        new_domain = F.when(in_vocab & F.col("source_domain_id").isin(ROUTABLE_DOMAINS)
+                            & ~F.col("source_concept_id").isin(KEEP_IN_PLACE_CONCEPTS),
+                            F.col("source_domain_id"))
 
     df = (df
           .withColumn("target_domain_id", F.when(hit, new_domain).otherwise(F.col("target_domain_id")))
