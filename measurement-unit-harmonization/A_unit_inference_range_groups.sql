@@ -200,7 +200,7 @@ FROM VALUES
   -- angles, resistance, exercise
   ('degrees',            'unit', 'deg',       'degrees of angle (EKG axes)'),
   ('dynes-sec/cm5/m2',   'unit', 'dyn.s/cm5/m2', 'spelling of the SVR index unit'),
-  ('(dyne*sec)/cm5',     'unit', 'dyn.s/cm5', 'spelling of the SVR unit (the index is corrected to dyn.s/cm5/m2)'),
+  ('(dyne*sec)/cm5',     'unit', 'dyn.sec/cm5', 'the SVR unit; OMOP spells it dyn.sec/cm5 (the index is corrected to dyn.s/cm5/m2)'),
   ('METS',               'unit', '[MET]',     'metabolic equivalents'),
   -- temperature, pressure, electrical, radiation
   ('\'C',                'unit', 'Cel',       'degrees Celsius'),
@@ -324,7 +324,7 @@ FROM VALUES
   ('g/[dose]', '(?i)24 hour urine',   NULL, 'unit', 'g/(24.h)', 'per collection on a 24 hour urine test: per 24 hours'),
   ('{sgu}',    '(?i)^beta 2 glycoprotein 1 IgG', NULL, 'unit', '[GPI\'IgG\'U]', 'SGU is the IgG unit; every record is on the IgG test; OMOP maps it to the IgM unit'),
   ('{smu}',    '(?i)^beta 2 glycoprotein 1 IgM', NULL, 'unit', '[GPI\'IgM\'U]', 'SMU is the IgM unit; every record is on the IgM test; OMOP maps it to the IgG unit'),
-  ('dyn.s/cm5', '(?i)vascular resistance index', NULL, 'unit', 'dyn.s/cm5/m2', 'an SVR index is per m2 of body surface: the source labels it with the SVR unit'),
+  ('dyn.sec/cm5', '(?i)vascular resistance index', NULL, 'unit', 'dyn.s/cm5/m2', 'an SVR index is per m2 of body surface: the source labels it with the SVR unit'),
   -- no unit makes the values fit: the records get no unit
   ('[U]/mL',   '(?i)^mycoplasma',     NULL, 'withheld', NULL,  'no unit makes the values fit'),
   ('ug/L',     '^Creatinine .Mass/volume. in Urine$', NULL, 'withheld', NULL, 'no unit makes the values fit'),
