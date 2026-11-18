@@ -57,7 +57,7 @@ mg/g{creat},mg/mg,0.001,0.0,,1,
 mg/dL,mmol/L,0.111012,0.0,lactate,1,Lactate [Mass/volume] in Serum or Plasma
 nmol/mL,mmol/L,0.001,0.0,,1,Lactate [Moles/volume] in Serum or Plasma
 a,mo,12.0,0.0,,1,
-mosm/kg,mosm/kg{H20},1.0,0.0,,2,Osmolality of Urine
+mosm/kg,mosm/kg{H2O},1.0,0.0,,2,Osmolality of Urine
 ng/mL,ng/dL,100.0,0.0,,1,Triiodothyronine (T3) [Mass/volume] in Serum or Plasma
 ng/dL,ng/mL,0.01,0.0,,2,Testosterone [Mass/volume] in Serum or Plasma
 ug/L,ng/mL,1.0,0.0,,2,Tacrolimus [Mass/volume] in Blood

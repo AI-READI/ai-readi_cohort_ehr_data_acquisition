@@ -107,7 +107,7 @@ FROM VALUES
   ('Gy',               'Gy',      1,             0, NULL),
   ('cGy',              'Gy',      0.01,          0, NULL),
   ('mosm/kg',          'mosm/kg', 1,             0, NULL),
-  ('mosm/kg{H20}',     'mosm/kg', 1,             0, 'same as mosm/kg'),
+  ('mosm/kg{H2O}',     'mosm/kg', 1,             0, 'same as mosm/kg'),
   -- mass concentration
   ('g/L',              'g/L',     1,             0, NULL),
   ('g/dL',             'g/L',     10,            0, NULL),

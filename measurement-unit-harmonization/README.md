@@ -73,8 +73,8 @@ in [Known issues](#known-issues).
   full copy of `ehr_union_clean.measurement` with added columns
   ([Appendix B](#appendix-b-added-columns)). The source table is unchanged.
 - `measurement_unit_named` is that table with concept names and unit codes
-  added (`measurement_concept_name`, `harmonized_concept_name`, `test_name`,
-  `effective_unit_code`).
+  added (`harmonized_concept_name`, `test_name`, `effective_unit_code`;
+  `measurement_concept_name` already comes with the source table).
 - `unit_mapping` says what unit each unit text means and which unit codes are
   wrong for which records, with the source and rationale of each. Its design
   is in [unit_mapping_design.md](unit_mapping_design.md).

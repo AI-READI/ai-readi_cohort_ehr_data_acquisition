@@ -58,6 +58,12 @@
 -- MAGIC limits = [(f, *map(float, v)) for f, *v in re.findall(row, block.group(1))] if block else []
 -- MAGIC if len(limits) < 50 or len({l[0] for l in limits}) != len(limits):
 -- MAGIC     raise ValueError(f'09 U8 limits not read as expected ({len(limits)} rows): check the script layout')
+-- MAGIC # Fields 09 still lists after v1.8.9 dropped them from the lookup (lbscat_a1c
+-- MAGIC # renamed lbscat_hgb). Stephanie is removing them upstream; delete this once
+-- MAGIC # the print below shows nothing dropped.
+-- MAGIC DROPPED_FROM_LOOKUP = {'lbscat_a1c', 'import_buncreatinineratio'}
+-- MAGIC print('09 rows dropped:', sorted(l[0] for l in limits if l[0] in DROPPED_FROM_LOOKUP))
+-- MAGIC limits = [l for l in limits if l[0] not in DROPPED_FROM_LOOKUP]
 -- MAGIC save('redcap_value_limits', 'field string, imp_lo double, imp_hi double, ext_lo double, ext_hi double', limits)
 -- MAGIC
 -- MAGIC save('redcap_sources', 'file string, url string, fetched_at string, sha256 string', sources)

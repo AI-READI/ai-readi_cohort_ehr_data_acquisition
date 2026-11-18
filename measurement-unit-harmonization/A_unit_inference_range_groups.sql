@@ -453,8 +453,9 @@ FULL OUTER JOIN maps_to m
 --       the inferred unit's code. Correcting from the original code gives
 --       the same result on every rerun. n_results > 1 means two equally
 --       specific rules disagree (check 1k).
---     measurement_unit_named: every record, with names and codes added:
---       measurement_concept_name, harmonized_concept_name, test_id (the
+--     measurement_unit_named: every record, with names and codes added
+--       (measurement_concept_name comes with the record, from the pipeline):
+--       harmonized_concept_name, test_id (the
 --       harmonized concept, or 'src:' + measurement_source_value for
 --       concept 0), test_name (its concept name or source value),
 --       effective_unit_concept_id (the record's unit after correction:
@@ -512,7 +513,6 @@ GROUP BY data_partner_id, test_id, test_name, from_code;
 CREATE OR REPLACE VIEW hive_metastore.ehr_union_clean_metrics.measurement_unit_named AS
 WITH r AS (
   SELECT t.*,
-         mc.concept_name AS measurement_concept_name,
          hc.concept_name AS harmonized_concept_name,
          CASE WHEN COALESCE(t.harmonized_measurement_concept_id, 0) = 0
               THEN concat('src:', t.measurement_source_value)
@@ -520,7 +520,6 @@ WITH r AS (
          END AS test_id,
          COALESCE(hc.concept_name, t.measurement_source_value) AS test_name
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
-  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(t.measurement_concept_id, 0)
   LEFT JOIN omop_vocab.concept hc ON hc.concept_id = NULLIF(t.harmonized_measurement_concept_id, 0)
 ),
 c AS (
