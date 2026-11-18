@@ -165,10 +165,10 @@ partner ids. [G_rule_tables.sql](G_rule_tables.sql) produces them.
 
 | Table | Rows | Contents |
 |---|---:|---|
-| [conversions.csv](tables/conversions.csv) | 77 | Every conversion applied |
+| [conversions.csv](tables/conversions.csv) | 70 | Every conversion applied |
 | [canonical_unit_rules.csv](tables/canonical_unit_rules.csv) | 6 | Tests whose canonical unit is set by hand |
 | [unit_corrections.csv](tables/unit_corrections.csv) | 38 | Unit codes that are wrong for some records |
-| [unit_text_judgments.csv](tables/unit_text_judgments.csv) | 105 | Unit text mapped by a typed judgment row |
+| [unit_text_judgments.csv](tables/unit_text_judgments.csv) | 87 | Unit text mapped by a typed judgment row |
 | [test_name_rules.csv](tables/test_name_rules.csv) | 48 | Part C's rules on the test name |
 | [test_concept_rules.csv](tables/test_concept_rules.csv) | 38 | Part A's rules for a test concept |
 | [source_name_rules.csv](tables/source_name_rules.csv) | 81 | Units for records with no test concept, by source test name |
