@@ -112,8 +112,7 @@ with their own base in `unit_factors`, like the other dimensionless codes.
 - Case-insensitive matching that merges `s` and `S`.
 - Judgment rows whose rationale doesn't make the mapping obvious ("seen in
   data" is not a rationale; "typo for mEq/L", "spelling of mm[Hg]",
-  "values fit body weights as ounces; another partner's lb records match its kg (20c)"
-  are).
+  "fluid ounce on a weight: avoirdupois ounce" are).
 
 ## The table
 

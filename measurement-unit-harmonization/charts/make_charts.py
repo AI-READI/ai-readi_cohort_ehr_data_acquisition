@@ -38,11 +38,12 @@ def style(ax):
 
 def unit_assignment():
     # (group, unit found, no UCUM unit exists, failed to find unit); E1 by part.
-    # B's no_ucum_unit count is under 11, so it is added to B's failures.
+    # B's failures include the few {log} records a correction leaves with no
+    # unit (too few to show alone), as in the README's opening table.
     parts = [
-        ('A  No unit, has a reference range', 195_400, 9_628, 88),
-        ('B  Unit text with no unit concept', 54_544, 0, 711),
-        ('C  No unit, no reference range', 1_043_622, 14_784, 4_658),
+        ('A  No unit, has a reference range', 185_111, 5_780, 83),
+        ('B  Unit text, or a unit code with no UCUM unit', 231_597, 106, 447),
+        ('C  No unit, no reference range', 1_078_205, 15_032, 4_528),
     ]
     outcomes = ['Unit found', 'No UCUM unit exists', 'Failed to find unit']
     colors = SERIES + [MUTED]
@@ -73,10 +74,10 @@ def unit_assignment():
 def conversion():
     # 19a, records by conversion method
     rows = [
-        ('Already in canonical unit', 5_984_535),
-        ('Converted by unit factor', 943_360),
-        ('Converted via molar mass or charge', 65_385),
-        ('No fixed conversion', 4_643),
+        ('Already in canonical unit', 5_556_399),
+        ('Converted by unit factor', 920_289),
+        ('Converted via molar mass or charge', 56_202),
+        ('No fixed conversion', 3_534),
     ]
     fig, ax = plt.subplots(figsize=(8, 2.8))
     ax.barh([r[0] for r in rows], [r[1] for r in rows], height=0.5,

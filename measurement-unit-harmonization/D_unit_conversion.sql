@@ -4,8 +4,8 @@
 -- unit_conversion_method and harmonized_value_as_number for every numeric
 -- record with a unit: inferred_unit_concept_id, 0 read as none. Cell 17d
 -- first writes unit_mapping's corrections into it (Part A, 1i): units
--- that are wrong for some records (S used for seconds, one partner's
--- "[lb_us]" weights that are ounces) become the unit the records are
+-- that are wrong for some records (S used for seconds, fluid ounces
+-- [foz_us] on body weights) become the unit the records are
 -- really in, or none. The rest of this part picks canonical units and converts.
 -- no_ucum_unit records (harmonized = value already) and suspect_concept records
 -- are not touched.
