@@ -8,15 +8,21 @@ file. This file holds what those don't.
 
 The README, [charts/make_charts.py](charts/make_charts.py) (counts typed in),
 and E's expectations carry the counts of the last run. Update all three from
-E, and refresh `tables/` from G.
+E, export E7 as
+[charts/lab_unit_outcomes.csv](charts/lab_unit_outcomes.csv) and regenerate
+the charts, and refresh `tables/` from G.
 
 Nothing identifying goes in the repo:
 
 - No partner ids in text. They appear only as rule keys in A's cell 1g.
 - No medians or record values in rationales or notes.
 - Docs and E's expectation comments report no count under 11: merge it into a
-  neighbor, and make sure no subtraction of published totals recovers it. Low
-  counts aren't PHI; this avoids inviting curiosity.
+  neighbor, and make sure no subtraction of published totals recovers it,
+  across tables and between E and the README. The `{log}` records are counted
+  with Part B's failures, and Part A's needs_review and no_concept with its
+  suspect_concept; E rounds the counts whose exact value would give those
+  back (Part B's total and unmapped, A's suspect_concept, the copied total).
+  Low counts aren't PHI; this avoids inviting curiosity.
 - Read every CSV from [make_tables.py](make_tables.py) before committing it.
   `ref_files/` is excluded from git; `tables/` isn't.
 

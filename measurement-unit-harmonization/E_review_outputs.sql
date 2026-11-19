@@ -6,8 +6,10 @@
 -- bottom. Cells are numbered after the step of 0 or A-D they review, and each
 -- says what to expect where that's been settled.
 --
--- Counts: the expected counts are from the 2026-11-03 run (7,027,806
--- numeric records). A change in the source table moves them slightly.
+-- Counts: the expected counts are from the 2026-11-18 run (6,562,400
+-- numeric records); a rebuilt source table changes them. None is under 11,
+-- and a few are rounded ("about") where the exact figure minus a README
+-- count would give back one that is.
 
 -- COMMAND ----------
 
@@ -109,9 +111,9 @@ ORDER BY unit_inference_method, n DESC;
 --      Expect: about 232,100 records in all. Unit 231,597 (redcap_label
 --      179,768, nearly all mmHg; judgment 36,006; ucum_code 14,483;
 --      arrived_unit 1,326; maps_to 14); unmapped about 350; no_ucum_unit
---      106 (needle gauge, activity coefficient); not_a_unit about 100; no
---      review rows. (Unmapped and not_a_unit are rounded: the README counts
---      a few corrected {log} records with them.)
+--      106 (needle gauge, activity coefficient); not_a_unit 97; no review
+--      rows. (The total and unmapped are rounded: the README counts the
+--      {log} records 1n lists with them.)
 SELECT decision, source, matched_by, COUNT(*) AS n_texts, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text'
@@ -332,7 +334,8 @@ FROM e;
 --      maps_to rows are OMOP's Maps to for an arrived unit that isn't
 --      standard UCUM; a wrong one gets a judgment row in 1g. Rows with no
 --      n matched no numeric records.
---      Expect: ratio near 1 on rows with n. maps_to rows for 9117
+--      Expect: ratio near 1 on rows with n, except CEA, testosterone and
+--      expiratory minute volume (README, Known issues). maps_to rows for 9117
 --      mL/min/1.73.m2 (653), 8653 [degC] (86), 8644 s/{CO},
 --      8608 [{index'value}], 8500 {sau}; judgment rows for {sgu} and {smu};
 --      S and H on clotting times and durations; dyn.sec/cm5 on SVR and PVR
@@ -484,8 +487,8 @@ ORDER BY test_n DESC;
 -- 19i (Part D). Review: is a group's unit wrong? Groups (partner, test, unit) on a
 --      list test whose median converted value is outside the plausible
 --      limits. A few bad values don't move a median, so a group listed here
---      is almost certainly in another unit than its label (as one
---      partner's "[lb_us]" body weights are ounces). Fix with a correction
+--      is almost certainly in another unit than its label (body weights
+--      labeled [foz_us] would be, without 17f's correction). Fix with a correction
 --      row (A 1g); nothing here changes the data. Groups with no
 --      conversion are in 19d instead.
 --      Expect: no rows. Records a correction leaves with
@@ -576,8 +579,7 @@ ORDER BY n_numeric DESC, l.concept_name;
 --      A: total 190,974; unit methods 185,111; no_ucum_unit 5,780 (specific
 --         gravity); suspect_concept, needs_review and no_concept together 83
 --      B: total about 232,100; mapped_string 231,597; no_ucum_unit 106;
---         unmapped_string about 350; not_a_unit about 100 (rounded, as in
---         11b)
+--         unmapped_string about 350 (rounded, as in 11b); not_a_unit 97
 --      C: total 1,097,765; explicit 1,003,417 (the HDL/total records
 --         among them, {ratio} under 3011163); no_ucum_unit 15,032; partner_unit
 --         plus dataset_unit 73,969; source_name 479; not_a_quantity 3,706;
@@ -619,12 +621,10 @@ ORDER BY 1, 2, 3, n DESC;
 -- COMMAND ----------
 
 -- 20b (Part D). Review: stored body weights by test, partner and unit.
---      kg_pct medians should all be near 80-90 kg. One partner's records
---      that arrived as [lb_us] are ounces (raw median 2,848): corrected to
---      [oz_av] (A 1g, D 17d). Another partner's stay [lb_us].
---      Expect: kg_pct medians all near 80-97. One partner's weights arrive
---      as [oz_av] (raw median about 2,848, kg about 80.7); its few "lbs"
---      text records are pounds.
+--      kg_pct medians should all be near 80-90 kg. Weights arrive in kg,
+--      [lb_us], [oz_av], or [foz_us] (corrected to [oz_av], 17f).
+--      Expect: kg_pct medians all near 80-97. The [oz_av] partner's few
+--      "lbs" text records are pounds.
 SELECT test_name, data_partner_id, effective_unit_code AS unit, unit_source_value,
        unit_inference_method, COUNT(*) AS n,
        percentile_approx(value_as_number, array(0.05, 0.5, 0.95)) AS raw_pct,
