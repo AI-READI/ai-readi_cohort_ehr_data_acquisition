@@ -80,9 +80,25 @@ SELECT m.*,
        CAST(NULL AS STRING) AS unit_conversion_method,
        CAST(NULL AS STRING) AS value_plausibility,
        CAST(NULL AS STRING) AS unit_corrected_from
-FROM (SELECT * FROM hive_metastore.ehr_union_clean.measurement
-      UNION ALL  -- same columns: step 12 makes the MacTel table as SELECT *
-      SELECT * FROM hive_metastore.ehr_union_clean_mactel.measurement) m;
+FROM (
+  -- The columns are named because the two tables differ: step 12 copies the
+  -- MacTel rows before it cuts ehr_union_clean.measurement down to these 20.
+  SELECT measurement_id, person_id, provider_id, visit_occurrence_id,
+         measurement_concept_id, measurement_date, measurement_datetime,
+         measurement_time, measurement_type_concept_id, operator_concept_id,
+         value_as_number, value_as_concept_id, unit_concept_id, range_low,
+         range_high, visit_detail_id, measurement_source_value,
+         measurement_source_concept_id, unit_source_value, data_partner_id
+  FROM hive_metastore.ehr_union_clean.measurement
+  UNION ALL
+  SELECT measurement_id, person_id, provider_id, visit_occurrence_id,
+         measurement_concept_id, measurement_date, measurement_datetime,
+         measurement_time, measurement_type_concept_id, operator_concept_id,
+         value_as_number, value_as_concept_id, unit_concept_id, range_low,
+         range_high, visit_detail_id, measurement_source_value,
+         measurement_source_concept_id, unit_source_value, data_partner_id
+  FROM hive_metastore.ehr_union_clean_mactel.measurement
+) m;
 
 -- COMMAND ----------
 
