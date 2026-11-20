@@ -74,7 +74,9 @@ in [Known issues](#known-issues).
   ([Appendix B](#appendix-b-added-columns)). The source table is unchanged.
 - `measurement_unit_harmonized_mactel` is the same for
   `ehr_union_clean_mactel.measurement`, the MacTel cohort that step 12 moves
-  out of `ehr_union_clean`. Its records are harmonized together with the
+  out of `ehr_union_clean`. It has the main table's 20 source columns, not
+  the 26 in `ehr_union_clean_mactel.measurement`: step 12 copies the MacTel
+  rows before it drops 6 columns. Its records are harmonized together with the
   main table's, so the same rules apply, and H then splits them out. Both
   tables join to their source tables by `measurement_id`.
 - `measurement_unit_named` is that table with concept names and unit codes
