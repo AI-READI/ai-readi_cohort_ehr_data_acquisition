@@ -1,9 +1,9 @@
 # Unit harmonization of AI-READI EHR measurements
 
-The EHR data has 6,562,400 numeric measurement records. 5,041,511 arrived with
-a unit concept that maps to a UCUM unit and 1,520,889 didn't. Harmonization
-found a unit for 1,494,913 of those, so 6,536,424 records (99.6%) now have an
-existing or inferred unit. For 6,532,890 of them a canonical unit could be
+The EHR data has 6,562,937 numeric measurement records. 5,041,892 arrived with
+a unit concept that maps to a UCUM unit and 1,521,045 didn't. Harmonization
+found a unit for 1,495,069 of those, so 6,536,961 records (99.6%) now have an
+existing or inferred unit. For 6,533,427 of them a canonical unit could be
 ascribed, and their values are converted to it.
 
 ## Units inferred
@@ -12,17 +12,17 @@ Every numeric record, by how it arrived and where it ended up:
 
 | Arrived with | Records | Has a unit now | No UCUM unit exists | Failed to find unit |
 |---|---:|---:|---:|---:|
-| A unit concept that maps to a UCUM unit | 5,041,511 | 5,041,511 | 0 | 0 |
+| A unit concept that maps to a UCUM unit | 5,041,892 | 5,041,892 | 0 | 0 |
 | Unit text only, or a unit code with no UCUM unit\* | 232,150 | 231,597 | 106 | 447 |
 | No unit, reference range | 190,974 | 185,111 | 5,780 | 83 |
-| No unit, no range | 1,097,765 | 1,078,205 | 15,032 | 4,528 |
-| **Total** | **6,562,400** | **6,536,424** | **20,918** | **5,058** |
+| No unit, no range | 1,097,921 | 1,078,361 | 15,032 | 4,528 |
+| **Total** | **6,562,937** | **6,536,961** | **20,918** | **5,058** |
 
 \* The unit codes are log viral loads coded `{log}`, which OMOP maps to no
 UCUM unit; a correction row leaves them with none. They're too few to show on
 their own, so they're counted with Part B's unit text.
 
-Counts are from the 2026-11-18 run.
+Counts are from the 2026-11-20 run.
 
 ![Records that arrived without a unit concept](charts/unit_assignment.png)
 
@@ -30,8 +30,8 @@ The method behind each count is in [Appendix A](#appendix-a-records-by-method).
 
 ## Values converted
 
-Of the 6,536,424 records with an existing or inferred unit, 6,532,890 (99.9%)
-could be ascribed a canonical unit: 5,556,399 were already in it, and 976,491
+Of the 6,536,961 records with an existing or inferred unit, 6,533,427 (99.9%)
+could be ascribed a canonical unit: 5,556,849 were already in it, and 976,578
 were converted to it. How that works is in
 [Conversion to a canonical unit](#conversion-to-a-canonical-unit).
 
@@ -60,7 +60,7 @@ Also as [SVG](charts/lab_unit_outcomes.svg) and
 | [No unit found](#no-unit-found) | 5,058 | "Failed to find unit" in the [first table](#units-inferred) |
 | [Has a unit, can't convert](#has-a-unit-cant-convert) | 3,534 | "No fixed conversion" in the [chart above](#values-converted) |
 | [Values flagged implausible](#values-flagged-implausible-or-extreme) | 3,845 | Outside the REDCap list's plausible limits |
-| [Values flagged extreme](#values-flagged-implausible-or-extreme) | 19,921 | Inside those limits, outside the usual range |
+| [Values flagged extreme](#values-flagged-implausible-or-extreme) | 19,922 | Inside those limits, outside the usual range |
 
 Each link gives the breakdown, the cell that shows those records, and where to
 change them. The 20,918 records with no UCUM unit aren't failures: specific
@@ -267,7 +267,7 @@ under INR, whose canonical unit is {ratio}. E 19d lists them.
 ### Values flagged implausible or extreme
 
 `value_plausibility` flags 3,845 values as implausible (outside the REDCap
-list's plausible limits) and 19,921 as extreme (inside them, outside the usual
+list's plausible limits) and 19,922 as extreme (inside them, outside the usual
 range), on tests on the list. E 20d counts them by test. Flagged values never
 change. E 19i lists groups (partner, test, unit) whose median is implausible,
 which means their unit is wrong; a correction in A 1g fixes that.
@@ -349,11 +349,11 @@ are merged where a count would be under 11.
 
 | Outcome | `unit_inference_method` | Part | How | Records |
 |---|---|---|---|---:|
-| Unit | copied_from_unit_concept_id | | Arrived with a unit concept; copied into the inferred columns | 5,041,511 |
-| Unit | explicit | C | Rule on the test name | 1,003,417 |
+| Unit | copied_from_unit_concept_id | | Arrived with a unit concept; copied into the inferred columns | 5,041,892 |
+| Unit | explicit | C | Rule on the test name | 1,003,567 |
 | Unit | mapped_string | B | Unit text mapped to a standard UCUM unit by `unit_mapping` | 231,597 |
 | Unit | dataset_unit | A | Copied from labeled records of the same test, any partner; medians must agree within a factor of 2 | 157,294 |
-| Unit | partner_unit, dataset_unit | C | Copied from labeled records of the same test, same partner first; medians must agree within a factor of 2 | 73,969 |
+| Unit | partner_unit, dataset_unit | C | Copied from labeled records of the same test, same partner first; medians must agree within a factor of 2 | 73,975 |
 | Unit | range_match | A | Copied from labeled records of the same test, same partner and same reference range; no median check | 13,568 |
 | Unit | explicit | A | Set by hand per test (including pH, INR and ratios in {ratio}) | 13,057 |
 | Unit | source_name | A | No test concept; unit from the source test name | 1,033 |

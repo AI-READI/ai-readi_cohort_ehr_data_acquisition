@@ -43,7 +43,7 @@ def unit_assignment():
     parts = [
         ('A  No unit, has a reference range', 185_111, 5_780, 83),
         ('B  Unit text, or a unit code with no UCUM unit', 231_597, 106, 447),
-        ('C  No unit, no reference range', 1_078_205, 15_032, 4_528),
+        ('C  No unit, no reference range', 1_078_361, 15_032, 4_528),
     ]
     outcomes = ['Unit found', 'No UCUM unit exists', 'Failed to find unit']
     colors = SERIES + [MUTED]
@@ -74,8 +74,8 @@ def unit_assignment():
 def conversion():
     # 19a, records by conversion method
     rows = [
-        ('Already in canonical unit', 5_556_399),
-        ('Converted by unit factor', 920_289),
+        ('Already in canonical unit', 5_556_849),
+        ('Converted by unit factor', 920_376),
         ('Converted via molar mass or charge', 56_202),
         ('No fixed conversion', 3_534),
     ]
