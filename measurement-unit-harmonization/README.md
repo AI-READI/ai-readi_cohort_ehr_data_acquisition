@@ -72,6 +72,11 @@ in [Known issues](#known-issues).
 - `hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized` is a
   full copy of `ehr_union_clean.measurement` with added columns
   ([Appendix B](#appendix-b-added-columns)). The source table is unchanged.
+- `measurement_unit_harmonized_mactel` is the same for
+  `ehr_union_clean_mactel.measurement`, the MacTel cohort that step 12 moves
+  out of `ehr_union_clean`. Its records are harmonized together with the
+  main table's, so the same rules apply, and H then splits them out. Both
+  tables join to their source tables by `measurement_id`.
 - `measurement_unit_named` is that table with concept names and unit codes
   added (`harmonized_concept_name`, `test_name`, `effective_unit_code`;
   `measurement_concept_name` already comes with the source table).
@@ -272,7 +277,8 @@ through D, then the gate, then E.
 
 ## Setup and running
 
-Needs read access to `ehr_union_clean.measurement` and `omop_vocab.concept`,
+Needs read access to `ehr_union_clean.measurement`,
+`ehr_union_clean_mactel.measurement` and `omop_vocab.concept`,
 and write access to `hive_metastore.ehr_union_clean_metrics`. Part 0's cell 0a
 (Python) reads the REDCap list from GitHub
 ([value-set-mapping-common](https://github.com/AI-READI/DataElementMaps/tree/main/redCapDataDictionaryWithExtension/value-set-mapping-common)
@@ -288,13 +294,17 @@ raw.githubusercontent.com.
    after it.
 3. Run the gate, top to bottom. Its last cell raises an error if any check
    returned rows, and lists them.
-4. To read the results, run E. Every review should match the expectation in
+4. Run H, top to bottom. It moves the MacTel records to
+   `measurement_unit_harmonized_mactel` and checks that each table joins 1:1
+   to its source by `measurement_id`; its last cell raises an error if not.
+   Rerunning H means rerunning A-D and the gate first.
+5. To read the results, run E. Every review should match the expectation in
    its comment.
-5. To refresh `tables/`, run G, export it as `.ipynb` to
+6. To refresh `tables/`, run G, export it as `.ipynb` to
    `ref_files/G_rule_tables.ipynb`, and run
    [make_tables.py](make_tables.py).
 
-In the production pipeline, 0, A, B, C, D and the gate are to be added to the
+In the production pipeline, 0, A, B, C, D, the gate and H are to be added to the
 job for steps 11-12, as tasks after
 [drop orphan.sql](../ehr_data_harmonization_pipeline/12-union-clean/drop%20orphan.sql),
 the last step to change `ehr_union_clean.measurement`. That job is kept in
@@ -302,7 +312,8 @@ Databricks, not in
 [omop_workflow_definition.yaml](../ehr_data_harmonization_pipeline/omop_workflow_definition.yaml),
 which stops at step 10. E, F and G are run by
 hand. Nothing here reaches the release, because step 13 exports only
-`ehr_union_clean`. `ehr_union_clean_mactel.measurement` isn't harmonized.
+`ehr_union_clean`, and the MacTel delivery exports only
+`ehr_union_clean_mactel`.
 
 | Notebook | Source | Cells |
 |---|---|---|
@@ -312,6 +323,7 @@ hand. Nothing here reaches the release, because step 13 exports only
 | C. No unit, no reference range | [C_unit_inference_no_unit_no_range.sql](C_unit_inference_no_unit_no_range.sql) | 13-16 |
 | D. Conversion to canonical units, plausibility | [D_unit_conversion.sql](D_unit_conversion.sql) | 17-20 |
 | Gate: checks that fail the run | [E_gate_checks.sql](E_gate_checks.sql) | numbered by the step checked |
+| H. MacTel split and join checks | [H_mactel_split.sql](H_mactel_split.sql) | 1-4 |
 | E. Review of the run | [E_review_outputs.sql](E_review_outputs.sql) | numbered by the step reviewed |
 | F. Probes for review questions (optional) | [F_probes.sql](F_probes.sql) | F1, F2, ... |
 | G. Rule tables for review (optional) | [G_rule_tables.sql](G_rule_tables.sql) | |

@@ -2,7 +2,7 @@
 -- Unit inference, Part E: review the outputs of a full run, for someone
 -- reading the results. It isn't part of the batch run.
 --
--- Read-only: every cell is a SELECT. Run after E_gate_checks.sql, top to
+-- Read-only: every cell is a SELECT. Run after H_mactel_split.sql, top to
 -- bottom. Cells are numbered after the step of 0 or A-D they review, and each
 -- says what to expect where that's been settled.
 --

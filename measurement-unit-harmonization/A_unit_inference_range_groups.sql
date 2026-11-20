@@ -5,8 +5,9 @@
 -- several statements runs them in order; Databricks shows the result of the
 -- LAST statement, which is the one to look at.
 --
--- Run order: 0, A, B, C, D (files 0_ and A_ to D_). Part 0 loads the
--- AI-READI REDCap list that Part D checks values against.
+-- Run order: 0, A, B, C, D (files 0_ and A_ to D_), the gate, then H.
+-- Part 0 loads the AI-READI REDCap list that Part D checks values against.
+-- H splits the MacTel records out of measurement_unit_harmonized.
 -- PART A: numeric records with NO unit but a reference range.
 -- PART B: records with a unit STRING but no unit concept.
 -- PART C: numeric records with no unit and no reference range.
@@ -46,8 +47,12 @@
 
 -- ===== A1. Setup: target table, added columns, records that arrived with a unit =====
 
--- 1. Target table: a full copy of ehr_union_clean.measurement plus the added
---    columns. Does nothing if the table exists.
+-- 1. Target table: a full copy of ehr_union_clean.measurement and
+--    ehr_union_clean_mactel.measurement plus the added columns. The MacTel
+--    records are harmonized with everyone else's, so the rules see all the
+--    data; H then moves them to measurement_unit_harmonized_mactel. Their
+--    measurement_ids don't overlap: step 12 copies the MacTel people out of
+--    ehr_union_clean and then deletes them from it.
 --      harmonized_measurement_concept_id  the test, corrected (cell 1d)
 --      unit_inference_method       how the unit was decided
 --      inferred_unit_concept_id    the record's unit (UCUM concept); 0 for unit
@@ -75,7 +80,9 @@ SELECT m.*,
        CAST(NULL AS STRING) AS unit_conversion_method,
        CAST(NULL AS STRING) AS value_plausibility,
        CAST(NULL AS STRING) AS unit_corrected_from
-FROM hive_metastore.ehr_union_clean.measurement m;
+FROM (SELECT * FROM hive_metastore.ehr_union_clean.measurement
+      UNION ALL  -- same columns: step 12 makes the MacTel table as SELECT *
+      SELECT * FROM hive_metastore.ehr_union_clean_mactel.measurement) m;
 
 -- COMMAND ----------
 
