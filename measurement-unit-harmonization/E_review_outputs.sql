@@ -6,7 +6,7 @@
 -- bottom. Cells are numbered after the step of 0 or A-D they review, and each
 -- says what to expect where that's been settled.
 --
--- Counts: the expected counts are from the 2026-11-18 run (6,562,400
+-- Counts: the expected counts are from the 2026-11-20 run (6,562,937
 -- numeric records); a rebuilt source table changes them. None is under 11,
 -- and a few are rounded ("about") where the exact figure minus a README
 -- count would give back one that is.
@@ -75,8 +75,12 @@ ORDER BY decision, n DESC;
 -- COMMAND ----------
 
 -- 5a (Part A). Review: how many groups and records each method covers
---     Expect: n_records total 190,974; explicit 13,057 (pH, INR, ratios,
---     indexes); no_ucum_unit 5,189 (specific gravity only); suspect_concept about 80.
+--     The decision table's n includes the MacTel records (rule evidence,
+--     built before H moves them out), so the counts here are rounded; E1
+--     has the exact ones.
+--     Expect: n_records total about 191,200; explicit about 13,100 (pH, INR,
+--     ratios, indexes); no_ucum_unit about 5,200 (specific gravity only);
+--     suspect_concept about 80.
 --     no_concept rows are the concept-0 groups that 8b decides.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions
@@ -108,12 +112,14 @@ ORDER BY unit_inference_method, n DESC;
 
 -- 11b (Part B). Review: unit_mapping's text rows by decision and
 --      source.
---      Expect: about 232,100 records in all. Unit 231,597 (redcap_label
---      179,768, nearly all mmHg; judgment 36,006; ucum_code 14,483;
---      arrived_unit 1,326; maps_to 14); unmapped about 350; no_ucum_unit
---      106 (needle gauge, activity coefficient); not_a_unit 97; no review
---      rows. (The total and unmapped are rounded: the README counts the
---      {log} records 1n lists with them.)
+--      unit_mapping's n includes the MacTel records (rule evidence, built
+--      before H moves them out), so the counts here are rounded; E1 has
+--      the exact ones.
+--      Expect: about 232,200 records in all. Unit about 231,700
+--      (redcap_label about 179,800, nearly all mmHg; judgment about 36,000;
+--      ucum_code about 14,500; arrived_unit about 1,300; maps_to a
+--      handful); unmapped about 350; no_ucum_unit about 100 (needle gauge,
+--      activity coefficient); not_a_unit about 100; no review rows.
 SELECT decision, source, matched_by, COUNT(*) AS n_texts, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text'
@@ -221,12 +227,14 @@ ORDER BY ru.priority, t.n DESC;
 
 -- 15a (Part C). Review: Part C decisions by method, per (partner, test),
 --      before 16 splits value_split groups into bands.
---      Expect: total 1,097,765; explicit 1,003,417 (scores, pain scales,
---      pH, ratios included); no_ucum_unit 15,032 (counts, Ct values, RAST
---      class; 108 of them "Specific Gravity, URN, Externa" from the
---      source-name list); needs_review 597; value_split 565; source_name 13
---      groups, 479 records (F5 lists them). E1 has the per-record counts
---      after the split.
+--      The decision table's n includes the MacTel records (rule evidence,
+--      built before H moves them out), so the counts here are rounded.
+--      Expect: total about 1,098,000; explicit about 1,003,600 (scores,
+--      pain scales, pH, ratios included); no_ucum_unit about 15,000
+--      (counts, Ct values, RAST class; about 100 of them "Specific Gravity,
+--      URN, Externa" from the source-name list); needs_review about 600;
+--      value_split about 600; source_name 13 groups, about 500 records (F5
+--      lists them). E1 has the exact per-record counts after the split.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions
 GROUP BY 1
@@ -398,11 +406,21 @@ ORDER BY r.test_pattern, n DESC;
 
 -- COMMAND ----------
 
--- 19a (Part D). Review: conversion decisions by method.
---      Expect: identity 5,556,399; same_base 920,289; analyte_bridge
+-- 19a (Part D). Review: conversion decisions by method, counted on the
+--      records of measurement_unit_harmonized; a group is a (partner,
+--      test, unit). It doesn't sum unit_conversion_decisions' n, which
+--      includes the MacTel records (H moves them out after D).
+--      Expect: identity 5,556,849; same_base 920,376; analyte_bridge
 --      56,202; no_conversion 3,534, equal to 20a's "has unit, no conversion".
-SELECT conversion_method, COUNT(*) AS n_groups, SUM(n) AS n_records
-FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions
+SELECT unit_conversion_method AS conversion_method,
+       COUNT(DISTINCT data_partner_id,
+             CASE WHEN COALESCE(harmonized_measurement_concept_id, 0) = 0
+                  THEN concat('src:', measurement_source_value)
+                  ELSE CAST(harmonized_measurement_concept_id AS STRING) END,
+             inferred_unit_concept_id) AS n_groups,
+       COUNT(*) AS n_records
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
+WHERE unit_conversion_method IS NOT NULL
 GROUP BY 1 ORDER BY n_records DESC;
 
 -- COMMAND ----------
@@ -520,7 +538,7 @@ ORDER BY n DESC;
 -- COMMAND ----------
 
 -- 20a (Part D). Review: numeric records by harmonization status.
---      Expect: in canonical unit 6,532,890; no UCUM unit exists 20,918
+--      Expect: in canonical unit 6,533,427; no UCUM unit exists 20,918
 --      (specific gravity, counts, Ct values, needle gauge, activity
 --      coefficients, RAST class); failed to find unit 5,058 (E1's methods
 --      that leave no unit, plus the {log} records a correction leaves with no
@@ -580,9 +598,9 @@ ORDER BY n_numeric DESC, l.concept_name;
 --         gravity); suspect_concept, needs_review and no_concept together 83
 --      B: total about 232,100; mapped_string 231,597; no_ucum_unit 106;
 --         unmapped_string about 350 (rounded, as in 11b); not_a_unit 97
---      C: total 1,097,765; explicit 1,003,417 (the HDL/total records
+--      C: total 1,097,921; explicit 1,003,567 (the HDL/total records
 --         among them, {ratio} under 3011163); no_ucum_unit 15,032; partner_unit
---         plus dataset_unit 73,969; source_name 479; not_a_quantity 3,706;
+--         plus dataset_unit 73,975; source_name 479; not_a_quantity 3,706;
 --         suspect_concept 225; needs_review 597; value_split 340
 SELECT CASE WHEN COALESCE(unit_concept_id, 0) <> 0 THEN 'has unit concept'
             WHEN unit_source_value IS NOT NULL      THEN 'B'
