@@ -2,12 +2,14 @@
 -- Unit inference, Part E: review the outputs of a full run, for someone
 -- reading the results. It isn't part of the batch run.
 --
--- Read-only: every cell is a SELECT. Run after E_gate_checks.sql, top to
+-- Read-only: every cell is a SELECT. Run after H_mactel_split.sql, top to
 -- bottom. Cells are numbered after the step of 0 or A-D they review, and each
 -- says what to expect where that's been settled.
 --
--- Counts: the expected counts are from the 2026-11-03 run (7,027,806
--- numeric records). A change in the source table moves them slightly.
+-- Counts: the expected counts are from the 2026-11-18 run (6,562,400
+-- numeric records); a rebuilt source table changes them. None is under 11,
+-- and a few are rounded ("about") where the exact figure minus a README
+-- count would give back one that is.
 
 -- COMMAND ----------
 
@@ -34,7 +36,7 @@ ORDER BY n DESC NULLS LAST, unit_text_or_code;
 --     every case variant of its spelling, so delete it only if all its
 --     spellings are listed. Correction rows: the judgment matches OMOP's
 --     Maps to for the code.
---     Expect: one row, text U, covered since the correction u -> [U].
+--     Expect: no rows.
 WITH a AS (
   SELECT t,
          COUNT(DISTINCT CASE WHEN exact THEN unit_concept_id END) AS n_exact_units,
@@ -63,7 +65,7 @@ ORDER BY kind, key;
 -- 1p (Part A). Review: text decided by ignoring case (no exact match), or sent to
 --     review because its case variants disagree. Look for case that
 --     changes the meaning (s/S, h/H, mU/MU).
---     Expect: 11 rows, none where case changes the meaning.
+--     Expect: 10 rows, none where case changes the meaning.
 SELECT unit_source_value, decision, ucum_code, source, rationale, candidates, n, tests,
        median, test_median
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
@@ -73,8 +75,8 @@ ORDER BY decision, n DESC;
 -- COMMAND ----------
 
 -- 5a (Part A). Review: how many groups and records each method covers
---     Expect: n_records total 205,116; explicit 22,853 (pH, INR, ratios,
---     indexes); no_ucum_unit 9,037 (specific gravity only); suspect_concept about 80.
+--     Expect: n_records total 190,974; explicit 13,057 (pH, INR, ratios,
+--     indexes); no_ucum_unit 5,189 (specific gravity only); suspect_concept about 80.
 --     no_concept rows are the concept-0 groups that 8b decides.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions
@@ -106,10 +108,12 @@ ORDER BY unit_inference_method, n DESC;
 
 -- 11b (Part B). Review: unit_mapping's text rows by decision and
 --      source.
---      Expect: 55,255 records in all. Unit 54,544 (judgment 35,762,
---      ucum_code 14,483, arrived_unit 4,258, maps_to 41); unmapped plus
---      no_ucum_unit 437 (no_ucum_unit under 11); not_a_unit 274; no
---      review rows.
+--      Expect: about 232,100 records in all. Unit 231,597 (redcap_label
+--      179,768, nearly all mmHg; judgment 36,006; ucum_code 14,483;
+--      arrived_unit 1,326; maps_to 14); unmapped about 350; no_ucum_unit
+--      106 (needle gauge, activity coefficient); not_a_unit 97; no review
+--      rows. (The total and unmapped are rounded: the README counts the
+--      {log} records 1n lists with them.)
 SELECT decision, source, matched_by, COUNT(*) AS n_texts, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text'
@@ -217,10 +221,10 @@ ORDER BY ru.priority, t.n DESC;
 
 -- 15a (Part C). Review: Part C decisions by method, per (partner, test),
 --      before 16 splits value_split groups into bands.
---      Expect: total 1,063,064; explicit 968,631 (scores, pain scales,
---      pH, ratios included); no_ucum_unit 14,784 (counts, Ct values, RAST
+--      Expect: total 1,097,765; explicit 1,003,417 (scores, pain scales,
+--      pH, ratios included); no_ucum_unit 15,032 (counts, Ct values, RAST
 --      class; 108 of them "Specific Gravity, URN, Externa" from the
---      source-name list); needs_review 644; value_split 565; source_name 13
+--      source-name list); needs_review 597; value_split 565; source_name 13
 --      groups, 479 records (F5 lists them). E1 has the per-record counts
 --      after the split.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
@@ -246,9 +250,9 @@ ORDER BY d.n DESC;
 -- 15c (Part C). Review: needs_review, one row per test across partners. These are
 --      what the name rules (14) are for. evidence_units shows units the test
 --      has elsewhere whose medians didn't fit.
---      Expect: log viral loads, Treadmill MPH (28), Creatinine/Protein [Mass
---      Ratio] in Urine (94), Physical findings of Skin (69),
---      Aldosterone/Renin ratio (32), plus one-offs. Band-level needs_review
+--      Expect: Creatinine/Protein [Mass Ratio] in Urine (94), Physical
+--      findings of Skin (69), log viral loads, Aldosterone/Renin ratio (28),
+--      plus small ones. Band-level needs_review
 --      (15d) isn't here.
 SELECT test_name, test_id, SUM(n) AS n, COUNT(*) AS n_partners,
        min(p05) AS min_p05, percentile_approx(med, 0.5) AS med_of_medians, max(p95) AS max_p95,
@@ -330,11 +334,12 @@ FROM e;
 --      maps_to rows are OMOP's Maps to for an arrived unit that isn't
 --      standard UCUM; a wrong one gets a judgment row in 1g. Rows with no
 --      n matched no numeric records.
---      Expect: ratio near 1 on rows with n. maps_to rows for 9117
---      mL/min/1.73.m2 (about 6,264), 9540 l (835), 8644 s/{CO} (99),
---      8653 [degC] (86), 8608 [{index'value}] (34), 8500 {sau};
---      judgment rows for {sgu} and {smu}; S and H on clotting
---      times and durations. Withheld rows: under 11 records.
+--      Expect: ratio near 1 on rows with n, except CEA, testosterone and
+--      expiratory minute volume (README, Known issues). maps_to rows for 9117
+--      mL/min/1.73.m2 (653), 8653 [degC] (86), 8644 s/{CO},
+--      8608 [{index'value}], 8500 {sau}; judgment rows for {sgu} and {smu};
+--      S and H on clotting times and durations; dyn.sec/cm5 on SVR and PVR
+--      index tests (1,527). Withheld rows: no records.
 SELECT unit_code, test_pattern, data_partner_id, decision, ucum_code, source, n, tests,
        median, test_median, round(median / NULLIF(test_median, 0), 2) AS ratio,
        rationale, candidates
@@ -394,8 +399,8 @@ ORDER BY r.test_pattern, n DESC;
 -- COMMAND ----------
 
 -- 19a (Part D). Review: conversion decisions by method.
---      Expect: identity 5,984,535; same_base 943,360; analyte_bridge
---      65,385; no_conversion 4,643, equal to 20a's "has unit, no conversion".
+--      Expect: identity 5,556,399; same_base 920,289; analyte_bridge
+--      56,202; no_conversion 3,534, equal to 20a's "has unit, no conversion".
 SELECT conversion_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions
 GROUP BY 1 ORDER BY n_records DESC;
@@ -419,8 +424,8 @@ ORDER BY n DESC;
 --      Compare median_raw with canonical_median to judge what the unit really is.
 --      Expect: log viral loads, Lp(a), arbitrary antibody units, and tests
 --      holding two different quantities. Nothing a factor would fix.
---      INR (canonical {ratio}) has 1,440 PT values in seconds, one s row
---      once S is corrected, half of them duplicates; dRVVT ratios sit under
+--      INR (canonical {ratio}) has 820 PT values in seconds, one s row
+--      once S is corrected, some of them duplicates (F6); dRVVT ratios sit under
 --      tests whose canonical unit is s.
 SELECT test_name, data_partner_id, unit_code, n, median_raw, canonical_unit_code, canonical_median, analyte
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_medians
@@ -432,9 +437,9 @@ ORDER BY n DESC;
 -- 19e (Part D). Review: do converted values look like canonical-unit values?
 --      ratio far from 1 = wrong factor, wrong analyte, or the source unit
 --      label is wrong (add a correction row, A 1g). Most extreme first.
---      Expect: ratios near 1 apart from small groups. Body weight, one
---      partner, [oz_av] (corrected from [lb_us], 17f), median_converted about
---      80.7 (kg).
+--      Expect: ratios near 1 apart from small groups. Body weight, two
+--      partners, [oz_av] (one partner's arrive as [oz_av], the other's as
+--      [foz_us], corrected in 17f), median_converted 80-85 (kg).
 SELECT test_name, data_partner_id, unit_code, canonical_unit_code, conversion_method, n,
        median_raw, median_converted, canonical_median, ratio
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_medians
@@ -482,14 +487,13 @@ ORDER BY test_n DESC;
 -- 19i (Part D). Review: is a group's unit wrong? Groups (partner, test, unit) on a
 --      list test whose median converted value is outside the plausible
 --      limits. A few bad values don't move a median, so a group listed here
---      is almost certainly in another unit than its label (as one
---      partner's "[lb_us]" body weights are ounces). Fix with a correction
+--      is almost certainly in another unit than its label (body weights
+--      labeled [foz_us] would be, without 17f's correction). Fix with a correction
 --      row (A 1g); nothing here changes the data. Groups with no
 --      conversion are in 19d instead.
 --      Expect: no rows. Records a correction leaves with
 --      no unit, such as one partner's urine creatinine in ug/L, have no
---      converted value. Ounces labeled [lb_us] shouldn't
---      appear: they're corrected to [oz_av] (17d).
+--      converted value.
 WITH rec AS (
   SELECT d.data_partner_id, d.test_id, d.test_name, d.unit_code,
          d.conversion_method, k.value_as_number,
@@ -516,11 +520,11 @@ ORDER BY n DESC;
 -- COMMAND ----------
 
 -- 20a (Part D). Review: numeric records by harmonization status.
---      Expect: in canonical unit 6,993,280; no UCUM unit exists plus
---      failed to find unit 29,883 (no UCUM unit: specific gravity, counts,
---      Ct values, activity coefficients, RAST class; failed: E1's methods
---      that leave no unit, plus 14 records a correction leaves with no
---      unit); has unit, no conversion 4,643 (19d, including INR's seconds records).
+--      Expect: in canonical unit 6,532,890; no UCUM unit exists 20,918
+--      (specific gravity, counts, Ct values, needle gauge, activity
+--      coefficients, RAST class); failed to find unit 5,058 (E1's methods
+--      that leave no unit, plus the {log} records a correction leaves with no
+--      unit); has unit, no conversion 3,534 (19d, including INR's seconds records).
 SELECT CASE WHEN canonical_unit_concept_id IS NOT NULL  THEN 'in canonical unit'
             WHEN harmonized_value_as_number IS NOT NULL THEN 'no UCUM unit exists'
             WHEN COALESCE(inferred_unit_concept_id, 0) <> 0 THEN 'has unit, no conversion'
@@ -539,11 +543,11 @@ GROUP BY 1 ORDER BY n DESC;
 --      unit, the canonical unit next to the list's, and value_plausibility
 --      counts; limits are in the canonical unit. not_checked: numeric
 --      records with no harmonized value (no unit, no conversion, suspect).
---      Expect: 57 rows, 44 of them with records; not_checked 0 on the
+--      Expect: 55 rows, 42 of them with records; not_checked 0 on the
 --      rows without. Canonical units differ from the list's only as
 --      equivalent codes (mmol/L for mEq/L, [U]/L for IU/L). Implausible counts mostly in vitals: heart
---      rate 1,733, systolic BP 1,477 (most from one partner), body weight
---      478, diastolic BP 208, BMI 132; under 100 for every lab.
+--      rate 1,671, systolic BP 1,475 (most from one partner), diastolic BP
+--      207, BMI 129, body weight 121; under 100 for every lab.
 SELECT l.concept_id, l.concept_name, COALESCE(l.lookup_fields, l.mapped_fields) AS fields,
        l.list_unit_code, array_join(collect_set(t.canonical_unit_value), ', ') AS canonical_unit,
        COUNT(t.value_as_number) AS n_numeric,
@@ -571,16 +575,15 @@ ORDER BY n_numeric DESC, l.concept_name;
 --    from the target table after every apply. Parts are told apart by raw
 --    columns, as each part picks its records.
 --    Expect:
---      has unit concept: copied_from_unit_concept_id only, 5,704,371
---      A: total 205,116; unit methods 195,400; no_ucum_unit 9,628 (specific
---         gravity); suspect_concept, needs_review and no_concept together 88
---      B: total 55,255; mapped_string 54,544; unmapped_string plus
---         no_ucum_unit 437 (no_ucum_unit under 11: ACTIVITY COEFF);
---         not_a_unit 274
---      C: total 1,063,064; explicit 968,631 (the 6,457 HDL/total records
---         among them, {ratio} under 3011163); no_ucum_unit 14,784; partner_unit
---         plus dataset_unit 74,172; source_name 479; not_a_quantity 3,789;
---         suspect_concept 225; needs_review 644; value_split 340
+--      has unit concept: copied_from_unit_concept_id only, about 5.04 million
+--      A: total 190,974; unit methods 185,111; no_ucum_unit 5,780 (specific
+--         gravity); suspect_concept, needs_review and no_concept together 83
+--      B: total about 232,100; mapped_string 231,597; no_ucum_unit 106;
+--         unmapped_string about 350 (rounded, as in 11b); not_a_unit 97
+--      C: total 1,097,765; explicit 1,003,417 (the HDL/total records
+--         among them, {ratio} under 3011163); no_ucum_unit 15,032; partner_unit
+--         plus dataset_unit 73,969; source_name 479; not_a_quantity 3,706;
+--         suspect_concept 225; needs_review 597; value_split 340
 SELECT CASE WHEN COALESCE(unit_concept_id, 0) <> 0 THEN 'has unit concept'
             WHEN unit_source_value IS NOT NULL      THEN 'B'
             WHEN range_high IS NOT NULL             THEN 'A'
@@ -618,12 +621,10 @@ ORDER BY 1, 2, 3, n DESC;
 -- COMMAND ----------
 
 -- 20b (Part D). Review: stored body weights by test, partner and unit.
---      kg_pct medians should all be near 80-90 kg. One partner's records
---      that arrived as [lb_us] are ounces (raw median 2,848): corrected to
---      [oz_av] (A 1g, D 17d). Another partner's stay [lb_us].
---      Expect: kg_pct medians all near 80-90. One partner's [oz_av]
---      (corrected from [lb_us]): raw median about 2,848, kg median about
---      80.7.
+--      kg_pct medians should all be near 80-90 kg. Weights arrive in kg,
+--      [lb_us], [oz_av], or [foz_us] (corrected to [oz_av], 17f).
+--      Expect: kg_pct medians all near 80-97. The [oz_av] partner's few
+--      "lbs" text records are pounds.
 SELECT test_name, data_partner_id, effective_unit_code AS unit, unit_source_value,
        unit_inference_method, COUNT(*) AS n,
        percentile_approx(value_as_number, array(0.05, 0.5, 0.95)) AS raw_pct,
@@ -639,8 +640,8 @@ ORDER BY 1, 2, n DESC;
 --      ratio = person's median converted lb record / median kg record.
 --      Near 1: the lb records are fine and the gap is who gets weighed in
 --      lb. Near 1.3 for everyone: the lb label or factor is wrong.
---      Expect: ratio_pct median near 1 for the one partner listed. The
---      other partner's lb records are corrected to [oz_av], so it has no [lb_us] rows.
+--      Expect: ratio_pct median near 1 for the one partner listed, the only
+--      one with both kg and [lb_us] records for the same people.
 WITH w AS (
   SELECT person_id, data_partner_id, effective_unit_code AS unit,
          percentile_approx(harmonized_value_as_number, 0.5) AS kg
@@ -662,8 +663,78 @@ GROUP BY 1, 2;
 -- E6 (the unmapped rows of 11c). Review: unit text no
 --    source or judgment row maps. Records get inferred unit 0 and no
 --    conversion, so anything a judgment row could map belongs in 1g.
---    Expect: 37 texts on about 440 records.
+--    Expect: 23 texts on about 350 records.
 SELECT unit_source_value, n, tests, median
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text' AND decision = 'unmapped'
 ORDER BY n DESC;
+
+-- COMMAND ----------
+
+-- E7. Chart data: unit outcomes per lab on the REDCap list, for the status
+--    chart in charts/make_charts.py (after Bradwell et al., JAMIA 2022,
+--    doi 10.1093/jamia/ocac054). One bar per lab concept: the lookup's lab
+--    rows (forms imported and lab_results; the two LDL rows share one
+--    concept), matched by harmonized concept, numeric records, all partners
+--    pooled. Segments, first match wins:
+--      nonsensical         unit text isn't a unit, the value isn't a
+--                          quantity, or a correction left no unit
+--      no_ucum_unit        no UCUM unit exists; value kept as recorded
+--      unable_to_infer     no unit found
+--      no_conversion       has a unit, no conversion to the canonical unit
+--      source_canonical    arrived with a unit concept, already canonical
+--      source_converted    arrived with a unit concept, converted
+--      text_mapped         unit text mapped to a unit (Part B)
+--      inferred_canonical  unit inferred, already canonical
+--      inferred_converted  unit inferred, converted
+--      suppressed          segments under 11 records, merged
+--    Counts are rounded up to a multiple of 10, n_total included, so totals
+--    can't give back a small count by subtraction. A suppressed segment
+--    still under 11 after merging has n NULL. Labs with under 11 numeric
+--    records are left out, as are labs with none.
+--    This is the only per-lab table meant for sharing: check any other
+--    per-lab counts against it before publishing them (20d's counts would
+--    give back suppressed segments by subtraction).
+--    Expect: 36 labs; source_canonical the biggest segment for all but
+--    urine albumin (all converted on arrival), and BUN/creatinine ratio and
+--    A/G ratio, which are mostly inferred.
+--    Export the result as charts/lab_unit_outcomes.csv.
+WITH labs AS (
+  SELECT try_cast(target_concept_id AS BIGINT) AS concept_id,
+         array_join(sort_array(collect_set(lookup_key)), ', ') AS fields
+  FROM hive_metastore.ehr_union_clean_metrics.redcap_unit_lookup
+  WHERE form_name IN ('imported', 'lab_results')
+  GROUP BY 1
+),
+seg AS (
+  SELECT l.concept_id, l.fields,
+         CASE WHEN t.unit_inference_method IN ('not_a_unit', 'not_a_quantity')
+                OR (t.unit_corrected_from IS NOT NULL
+                    AND COALESCE(t.inferred_unit_concept_id, 0) = 0) THEN 'nonsensical'
+              WHEN t.unit_inference_method = 'no_ucum_unit'          THEN 'no_ucum_unit'
+              WHEN COALESCE(t.inferred_unit_concept_id, 0) = 0       THEN 'unable_to_infer'
+              WHEN t.harmonized_value_as_number IS NULL              THEN 'no_conversion'
+              WHEN COALESCE(t.unit_concept_id, 0) <> 0
+                THEN IF(t.unit_conversion_method = 'identity', 'source_canonical', 'source_converted')
+              WHEN t.unit_inference_method = 'mapped_string'         THEN 'text_mapped'
+              ELSE IF(t.unit_conversion_method = 'identity', 'inferred_canonical', 'inferred_converted')
+         END AS segment,
+         COUNT(*) AS n
+  FROM labs l
+  JOIN hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+    ON t.harmonized_measurement_concept_id = l.concept_id AND t.value_as_number IS NOT NULL
+  GROUP BY 1, 2, 3
+),
+merged AS (
+  SELECT concept_id, fields, IF(n < 11, 'suppressed', segment) AS segment, SUM(n) AS n,
+         SUM(SUM(n)) OVER (PARTITION BY concept_id) AS n_total
+  FROM seg
+  GROUP BY 1, 2, 3
+)
+SELECT m.concept_id, c.concept_name, m.fields, m.segment,
+       IF(m.n < 11, NULL, CAST(ceil(m.n / 10) * 10 AS BIGINT)) AS n,
+       CAST(ceil(m.n_total / 10) * 10 AS BIGINT) AS n_total
+FROM merged m
+JOIN omop_vocab.concept c ON c.concept_id = m.concept_id
+WHERE m.n_total >= 11
+ORDER BY m.n_total DESC, m.concept_id, m.n DESC;

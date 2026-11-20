@@ -1,8 +1,12 @@
-"""Charts for README.md.
+"""Charts for README.md and status reporting.
 
-Counts are copied from the E_review_outputs notebook run (cells E1 and 19a).
+unit_assignment and conversion: counts copied from the E_review_outputs
+notebook run (cells E1 and 19a). lab_unit_outcomes: reads E7's export,
+lab_unit_outcomes.csv.
 Run: uv run --no-project --with matplotlib python make_charts.py
 """
+import csv
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -34,11 +38,12 @@ def style(ax):
 
 def unit_assignment():
     # (group, unit found, no UCUM unit exists, failed to find unit); E1 by part.
-    # B's no_ucum_unit count is under 11, so it is added to B's failures.
+    # B's failures include the few {log} records a correction leaves with no
+    # unit (too few to show alone), as in the README's opening table.
     parts = [
-        ('A  No unit, has a reference range', 195_400, 9_628, 88),
-        ('B  Unit text with no unit concept', 54_544, 0, 711),
-        ('C  No unit, no reference range', 1_043_622, 14_784, 4_658),
+        ('A  No unit, has a reference range', 185_111, 5_780, 83),
+        ('B  Unit text, or a unit code with no UCUM unit', 231_597, 106, 447),
+        ('C  No unit, no reference range', 1_078_205, 15_032, 4_528),
     ]
     outcomes = ['Unit found', 'No UCUM unit exists', 'Failed to find unit']
     colors = SERIES + [MUTED]
@@ -69,10 +74,10 @@ def unit_assignment():
 def conversion():
     # 19a, records by conversion method
     rows = [
-        ('Already in canonical unit', 5_984_535),
-        ('Converted by unit factor', 943_360),
-        ('Converted via molar mass or charge', 65_385),
-        ('No fixed conversion', 4_643),
+        ('Already in canonical unit', 5_556_399),
+        ('Converted by unit factor', 920_289),
+        ('Converted via molar mass or charge', 56_202),
+        ('No fixed conversion', 3_534),
     ]
     fig, ax = plt.subplots(figsize=(8, 2.8))
     ax.barh([r[0] for r in rows], [r[1] for r in rows], height=0.5,
@@ -88,5 +93,113 @@ def conversion():
     fig.savefig(OUT / 'conversion.png', dpi=200)
 
 
-unit_assignment()
-conversion()
+# E7 segments in stack order: (segment, legend label, color). Gray is data that
+# arrived ready; colors are what harmonization did; the last five are failures.
+SEGMENTS = [
+    ('source_canonical', 'Arrived with the canonical unit', '#c3c2b7'),
+    ('source_converted', 'Arrived with a unit, converted', '#2a78d6'),
+    ('text_mapped', 'Unit text mapped to a unit', '#e87ba4'),
+    ('inferred_canonical', 'Unit inferred, already canonical', '#008300'),
+    ('inferred_converted', 'Unit inferred, converted', '#1baf7a'),
+    ('no_conversion', 'No conversion to the canonical unit', '#eda100'),
+    ('no_ucum_unit', 'No UCUM unit exists', '#6250d6'),
+    ('unable_to_infer', 'Unable to infer a unit', '#e34948'),
+    ('nonsensical', 'Unit or value nonsensical', INK),
+    ('suppressed', 'Under 11 records, merged', MUTED),
+]
+IMPROVED = {'source_converted', 'text_mapped', 'inferred_canonical', 'inferred_converted'}
+VALID = IMPROVED | {'source_canonical'}
+SHORT_NAMES = {'3029187': 'NT-proBNP', '3019897': 'RDW'}
+
+
+def short_name(concept_id, name):
+    if concept_id in SHORT_NAMES:
+        return SHORT_NAMES[concept_id]
+    name = re.sub(r'\s*\[[^]]*\]', '', name)
+    name = re.sub(r' (in|of) (Serum or Plasma|Blood|Red Blood Cells)| by (Automated count|calculation)', '', name)
+    name = name.replace(' by High sensitivity method', ' (hs)').replace(' in Urine', ', urine')
+    return re.sub(r'(?<=\w)\.(?=[a-z])', ', ', name)
+
+
+def pct_text(n, total, floor=False):
+    """floor: the suppressed segment could hold more of these records, so the share is a minimum."""
+    p = 100 * n / total
+    if floor and p >= 99.95:
+        return '≥99.9%'
+    text = f'{p:.1f}%' if p >= 0.1 or not n else '<0.1%'
+    return '≥' + text if floor and n else text
+
+
+def lab_unit_outcomes(src=OUT / 'lab_unit_outcomes.csv', out=OUT):
+    """Per-lab unit outcomes (after Bradwell et al., JAMIA 2022): a 100% bar per
+    lab, PNG/SVG/PDF, plus a wide table with shares. E7 has already rounded and
+    suppressed the counts; an empty n is a segment still under 11."""
+    labs = {}
+    for r in csv.DictReader(open(src)):
+        lab = labs.setdefault(r['concept_id'], {
+            'name': short_name(r['concept_id'], r['concept_name']),
+            'fields': r['fields'], 'total': int(r['n_total']), 'n': {}})
+        lab['n'][r['segment']] = int(r['n']) if r['n'] else None
+    # rounding every count up makes the parts sum past n_total, so shares are of the parts' sum
+    for l in labs.values():
+        l['parts'] = sum(n or 0 for n in l['n'].values())
+        l['improved'], l['valid'] = (sum(l['n'].get(s) or 0 for s in group) for group in (IMPROVED, VALID))
+    labs = sorted(labs.values(), key=lambda l: (-l['improved'] / l['parts'], -l['total']))
+    present = [s for s in SEGMENTS if any(s[0] in l['n'] for l in labs)]
+
+    with open(out / 'lab_unit_outcomes_table.csv', 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['lab', 'fields', 'records'] + [x for s in present for x in (s[0], s[0] + '_pct')])
+        for l in labs:
+            row = [l['name'], l['fields'], l['total']]
+            for seg, *_ in present:
+                n = l['n'].get(seg, 0)
+                row += ['<11', ''] if n is None else [n, round(100 * n / l['parts'], 2)]
+            w.writerow(row)
+
+    height = 0.24 * len(labs) + 2.2
+    fig, ax = plt.subplots(figsize=(10, height))
+    y = range(len(labs))
+    left = [0.0] * len(labs)
+    for seg, label, color in present:
+        vals = [100 * (l['n'].get(seg) or 0) / l['parts'] for l in labs]
+        ax.barh(y, vals, left=left, height=0.72, color=color, edgecolor=SURFACE, linewidth=1,
+                hatch='////' if seg == 'suppressed' else None, label=label)
+        left = [a + v for a, v in zip(left, vals)]
+    ax.set_yticks(list(y), [l['name'] for l in labs], fontsize=8.5)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 100)
+    ax.set_xticks(range(0, 101, 25), [f'{t}%' for t in range(0, 101, 25)])
+    for side in ('top', 'right', 'left', 'bottom'):
+        ax.spines[side].set_visible(False)
+    ax.tick_params(length=0)
+    # the improved share is often too thin to see, so it is spelled out
+    # a suppressed segment makes Valid a floor; Improved shows one only where it would round to 100%
+    sup = lambda l: 'suppressed' in l['n']
+    columns = [(1.17, 'Records', lambda l: f"{l['total']:,}"),
+               (1.31, 'Improved', lambda l: pct_text(l['improved'], l['parts'],
+                                                     sup(l) and l['improved'] == l['valid'])),
+               (1.45, 'Valid', lambda l: pct_text(l['valid'], l['parts'], sup(l)))]
+    at = ax.get_yaxis_transform()  # x in axes fractions, y in rows
+    for x, head, cell in columns:
+        ax.text(x, -1, head, transform=at, fontsize=8, color=MUTED, va='center', ha='right')
+        for i, l in enumerate(labs):
+            ax.text(x, i, cell(l), transform=at, fontsize=8, color=INK2, va='center', ha='right')
+    ax.legend(loc='upper left', bbox_to_anchor=(0, -0.035), frameon=False, ncol=2,
+              fontsize=8.5, handlelength=1.2)
+    ax.set_title('Unit outcomes for REDCap-list labs, all partners pooled',
+                 loc='left', fontsize=11, fontweight='bold', pad=14)
+    fig.text(0.01, 0.005, 'Numeric records by harmonized test concept, sorted by share improved. Counts rounded up '
+             'to a multiple of 10. Outcomes with under 11 records are combined into the hatched segment,\n'
+             'drawn only when it reaches 11. Improved: unit converted, mapped or inferred. '
+             'Valid: has a value in the canonical unit.', fontsize=7, color=MUTED)
+    # fixed margins: tight_layout would count the text columns as plot and shrink the bars
+    fig.subplots_adjust(left=0.24, right=0.68, top=1 - 0.7 / height, bottom=1.45 / height)
+    for ext in ('png', 'svg', 'pdf'):
+        fig.savefig(out / f'lab_unit_outcomes.{ext}', dpi=200)
+
+
+if __name__ == '__main__':
+    unit_assignment()
+    conversion()
+    lab_unit_outcomes()

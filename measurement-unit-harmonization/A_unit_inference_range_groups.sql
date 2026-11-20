@@ -5,8 +5,9 @@
 -- several statements runs them in order; Databricks shows the result of the
 -- LAST statement, which is the one to look at.
 --
--- Run order: 0, A, B, C, D (files 0_ and A_ to D_). Part 0 loads the
--- AI-READI REDCap list that Part D checks values against.
+-- Run order: 0, A, B, C, D (files 0_ and A_ to D_), the gate, then H.
+-- Part 0 loads the AI-READI REDCap list that Part D checks values against.
+-- H splits the MacTel records out of measurement_unit_harmonized.
 -- PART A: numeric records with NO unit but a reference range.
 -- PART B: records with a unit STRING but no unit concept.
 -- PART C: numeric records with no unit and no reference range.
@@ -46,8 +47,12 @@
 
 -- ===== A1. Setup: target table, added columns, records that arrived with a unit =====
 
--- 1. Target table: a full copy of ehr_union_clean.measurement plus the added
---    columns. Does nothing if the table exists.
+-- 1. Target table: a full copy of ehr_union_clean.measurement and
+--    ehr_union_clean_mactel.measurement plus the added columns. The MacTel
+--    records are harmonized with everyone else's, so the rules see all the
+--    data; H then moves them to measurement_unit_harmonized_mactel. Their
+--    measurement_ids don't overlap: step 12 copies the MacTel people out of
+--    ehr_union_clean and then deletes them from it.
 --      harmonized_measurement_concept_id  the test, corrected (cell 1d)
 --      unit_inference_method       how the unit was decided
 --      inferred_unit_concept_id    the record's unit (UCUM concept); 0 for unit
@@ -75,7 +80,9 @@ SELECT m.*,
        CAST(NULL AS STRING) AS unit_conversion_method,
        CAST(NULL AS STRING) AS value_plausibility,
        CAST(NULL AS STRING) AS unit_corrected_from
-FROM hive_metastore.ehr_union_clean.measurement m;
+FROM (SELECT * FROM hive_metastore.ehr_union_clean.measurement
+      UNION ALL  -- same columns: step 12 makes the MacTel table as SELECT *
+      SELECT * FROM hive_metastore.ehr_union_clean_mactel.measurement) m;
 
 -- COMMAND ----------
 
@@ -200,10 +207,12 @@ FROM VALUES
   -- angles, resistance, exercise
   ('degrees',            'unit', 'deg',       'degrees of angle (EKG axes)'),
   ('dynes-sec/cm5/m2',   'unit', 'dyn.s/cm5/m2', 'spelling of the SVR index unit'),
+  ('(dyne*sec)/cm5',     'unit', 'dyn.sec/cm5', 'the SVR unit; OMOP spells it dyn.sec/cm5 (the index is corrected to dyn.s/cm5/m2)'),
   ('METS',               'unit', '[MET]',     'metabolic equivalents'),
   -- temperature, pressure, electrical, radiation
   ('\'C',                'unit', 'Cel',       'degrees Celsius'),
   ('cmH2O',              'unit', 'cm[H2O]',   'spelling of cm[H2O]'),
+  ('cm H2O',             'unit', 'cm[H2O]',   'spelling of cm[H2O]'),
   ('Ohms',               'unit', 'Ohm',       'plural of Ohm'),
   ('cGray',              'unit', 'cGy',       'centigray'),
   ('Gray',               'unit', 'Gy',        'gray'),
@@ -217,6 +226,7 @@ FROM VALUES
   ('mOsmol/kg',          'unit', 'mosm/kg',   'spelling of mosm/kg'),
   ('mOsm/K',             'unit', 'mosm/kg',   'mOsm/kg cut short'),
   ('mcg/mg',             'unit', 'ug/mg',     'mcg is microgram (ug)'),
+  ('mcg/g',              'unit', 'ug/g',      'mcg is microgram (ug)'),
   ('mcg/mL FEU',         'unit', 'ug{FEU}/mL', 'mcg is microgram; FEU as in ug{FEU}/mL (D-dimer)'),
   -- per creatinine
   ('ug/g creat',         'unit', 'ug/g{creat}', 'spelling of ug/g{creat}'),
@@ -242,6 +252,7 @@ FROM VALUES
   ('M/mcl',              'unit', '10*6/uL',   'million per microliter'),
   ('Leu/uL',             'unit', '/uL',       'leukocytes per uL (urine)'),
   ('cell/uL',            'unit', '/uL',       'cells per uL'),
+  ('/ ul',               'unit', '/uL',       'spelling of /uL'),
   ('million/mL',         'unit', '10*6/mL',   'million per mL'),
   ('mil sperm/mL',       'unit', '10*6/mL',   'million sperm per mL'),
   ('cp/mL',              'unit', '{copies}/mL', 'abbreviation of copies/mL'),
@@ -284,6 +295,7 @@ FROM VALUES
   ('OD',                 'unit', '[OD\'U]',   'optical density'),
   -- no UCUM unit for the quantity
   ('ACTIVITY COEFF',     'no_ucum_unit', NULL, 'activity coefficient: dimensionless, and UCUM has no unit for it'),
+  ('gauge',              'no_ucum_unit', NULL, 'needle gauge: a size number, and UCUM has no unit for it'),
   -- not a unit
   ('Urine',              'not_a_unit', NULL, 'a specimen, not a unit'),
   ('Possible',           'not_a_unit', NULL, 'a word, not a unit'),
@@ -319,12 +331,12 @@ FROM VALUES
   ('g/[dose]', '(?i)24 hour urine',   NULL, 'unit', 'g/(24.h)', 'per collection on a 24 hour urine test: per 24 hours'),
   ('{sgu}',    '(?i)^beta 2 glycoprotein 1 IgG', NULL, 'unit', '[GPI\'IgG\'U]', 'SGU is the IgG unit; every record is on the IgG test; OMOP maps it to the IgM unit'),
   ('{smu}',    '(?i)^beta 2 glycoprotein 1 IgM', NULL, 'unit', '[GPI\'IgM\'U]', 'SMU is the IgM unit; every record is on the IgM test; OMOP maps it to the IgG unit'),
+  ('dyn.sec/cm5', '(?i)vascular resistance index', NULL, 'unit', 'dyn.s/cm5/m2', 'an SVR index is per m2 of body surface: the source labels it with the SVR unit'),
   -- no unit makes the values fit: the records get no unit
   ('[U]/mL',   '(?i)^mycoplasma',     NULL, 'withheld', NULL,  'no unit makes the values fit'),
   ('ug/L',     '^Creatinine .Mass/volume. in Urine$', NULL, 'withheld', NULL, 'no unit makes the values fit'),
   -- values plainly in another unit, for the partners whose medians showed
   -- it; other partners' records in the unit are left as labeled
-  ('[lb_us]',  '^Body weight$',       2084, 'unit', '[oz_av]', 'values fit body weights as ounces; another partner\'s lb records match its kg (20c)'),
   ('deg',      '(?i)temperature',     8469, 'unit', '[degF]',  'temperature values fit Fahrenheit'),
   ('m2',       '(?i)body mass index', 8469, 'unit', 'kg/m2',   'BMI values fit kg/m2'),
   ('mL/min',   '(?i)glomerular filtration|GFR', 2084, 'unit', 'mL/min/(173.10*-2.m2)', 'eGFR labeled mL/min; medians match eGFR in mL/min/1.73m2'),
@@ -453,8 +465,9 @@ FULL OUTER JOIN maps_to m
 --       the inferred unit's code. Correcting from the original code gives
 --       the same result on every rerun. n_results > 1 means two equally
 --       specific rules disagree (check 1k).
---     measurement_unit_named: every record, with names and codes added:
---       measurement_concept_name, harmonized_concept_name, test_id (the
+--     measurement_unit_named: every record, with names and codes added
+--       (measurement_concept_name comes with the record, from the pipeline):
+--       harmonized_concept_name, test_id (the
 --       harmonized concept, or 'src:' + measurement_source_value for
 --       concept 0), test_name (its concept name or source value),
 --       effective_unit_concept_id (the record's unit after correction:
@@ -512,7 +525,6 @@ GROUP BY data_partner_id, test_id, test_name, from_code;
 CREATE OR REPLACE VIEW hive_metastore.ehr_union_clean_metrics.measurement_unit_named AS
 WITH r AS (
   SELECT t.*,
-         mc.concept_name AS measurement_concept_name,
          hc.concept_name AS harmonized_concept_name,
          CASE WHEN COALESCE(t.harmonized_measurement_concept_id, 0) = 0
               THEN concat('src:', t.measurement_source_value)
@@ -520,7 +532,6 @@ WITH r AS (
          END AS test_id,
          COALESCE(hc.concept_name, t.measurement_source_value) AS test_name
   FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
-  LEFT JOIN omop_vocab.concept mc ON mc.concept_id = NULLIF(t.measurement_concept_id, 0)
   LEFT JOIN omop_vocab.concept hc ON hc.concept_id = NULLIF(t.harmonized_measurement_concept_id, 0)
 ),
 c AS (

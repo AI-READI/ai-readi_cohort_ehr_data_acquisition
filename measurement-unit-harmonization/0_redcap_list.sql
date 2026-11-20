@@ -58,6 +58,12 @@
 -- MAGIC limits = [(f, *map(float, v)) for f, *v in re.findall(row, block.group(1))] if block else []
 -- MAGIC if len(limits) < 50 or len({l[0] for l in limits}) != len(limits):
 -- MAGIC     raise ValueError(f'09 U8 limits not read as expected ({len(limits)} rows): check the script layout')
+-- MAGIC # Fields 09 still lists after v1.8.9 dropped them from the lookup (lbscat_a1c
+-- MAGIC # renamed lbscat_hgb). Stephanie is removing them upstream; delete this once
+-- MAGIC # the print below shows nothing dropped.
+-- MAGIC DROPPED_FROM_LOOKUP = {'lbscat_a1c', 'import_buncreatinineratio'}
+-- MAGIC print('09 rows dropped:', sorted(l[0] for l in limits if l[0] in DROPPED_FROM_LOOKUP))
+-- MAGIC limits = [l for l in limits if l[0] not in DROPPED_FROM_LOOKUP]
 -- MAGIC save('redcap_value_limits', 'field string, imp_lo double, imp_hi double, ext_lo double, ext_hi double', limits)
 -- MAGIC
 -- MAGIC save('redcap_sources', 'file string, url string, fetched_at string, sha256 string', sources)
@@ -72,7 +78,8 @@
 -- Review: 0d, in E_review_outputs.sql.
 
 -- 0b. The list per OMOP concept: one row for every standard concept the
---     mapping puts in the Measurement domain (the AI-READI custom concepts,
+--     mapping puts in the Measurement domain on a row with Map_to_OMOP = Yes
+--     (rows marked No are fields the list doesn't load; the AI-READI custom concepts,
 --     2005200xxx, aren't in omop_vocab and never appear in EHR data). The
 --     REDCap files are keyed by field name; this joins them on it:
 --       mapped_fields  the mapping's FIELD_ID for the concept (empty for the
@@ -89,7 +96,7 @@ WITH listed AS (
   SELECT try_cast(target_concept_id AS BIGINT) AS concept_id,
          array_join(sort_array(collect_set(field_id)), ', ') AS mapped_fields
   FROM hive_metastore.ehr_union_clean_metrics.redcap_value_set_mapping
-  WHERE target_domain_id = 'Measurement'
+  WHERE target_domain_id = 'Measurement' AND map_to_omop = 'Yes'
   GROUP BY 1
 ),
 lookup AS (
