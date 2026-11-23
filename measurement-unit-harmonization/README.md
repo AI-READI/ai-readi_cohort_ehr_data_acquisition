@@ -1,32 +1,87 @@
 # Unit harmonization of AI-READI EHR measurements
 
-Every numeric measurement record, by how it arrived and where it ended up:
+The EHR data has 6,562,937 numeric measurement records. 5,041,892 arrived with
+a unit concept that maps to a UCUM unit and 1,521,045 didn't. Harmonization
+found a unit for 1,495,069 of those, so 6,536,961 records (99.6%) now have an
+existing or inferred unit. For 6,533,427 of them a canonical unit could be
+ascribed, and their values are converted to it.
+
+## Units inferred
+
+Every numeric record, by how it arrived and where it ended up:
 
 | Arrived with | Records | Has a unit now | No UCUM unit exists | Failed to find unit |
 |---|---:|---:|---:|---:|
-| A unit concept | 5,704,371 | 5,704,371 | 0 | 0 |
-| Unit text only | 55,255 | 54,544 | see below | 711 |
-| No unit, reference range | 205,116 | 195,400 | 9,628 | 88 |
-| No unit, no range | 1,063,064 | 1,043,622 | 14,784 | 4,658 |
-| *Unit removed by a correction* | | -14 | | +14 |
-| **Total** | **7,027,806** | **6,997,923** | **24,412** | **5,471** |
+| A unit concept that maps to a UCUM unit | 5,041,892 | 5,041,892 | 0 | 0 |
+| Unit text only, or a unit code with no UCUM unit\* | 232,150 | 231,597 | 106 | 447 |
+| No unit, reference range | 190,974 | 185,111 | 5,780 | 83 |
+| No unit, no range | 1,097,921 | 1,078,361 | 15,032 | 4,528 |
+| **Total** | **6,562,937** | **6,536,961** | **20,918** | **5,058** |
 
-Counts are from the 2026-11-03 run. Counts under 11 aren't reported: the
-unit-text group's no-UCUM records are counted under failed to find unit.
+\* The unit codes are log viral loads coded `{log}`, which OMOP maps to no
+UCUM unit; a correction row leaves them with none. They're too few to show on
+their own, so they're counted with Part B's unit text.
 
-Of the 6,997,923 records with a unit, 6,993,280 (99.9%) are in their test's
-canonical unit: 5,984,535 already were, and 1,008,745 were converted.
+Counts are from the 2026-11-20 run.
+
+![Records that arrived without a unit concept](charts/unit_assignment.png)
 
 The method behind each count is in [Appendix A](#appendix-a-records-by-method).
+
+## Values converted
+
+Of the 6,536,961 records with an existing or inferred unit, 6,533,427 (99.9%)
+could be ascribed a canonical unit: 5,556,849 were already in it, and 976,578
+were converted to it. How that works is in
+[Conversion to a canonical unit](#conversion-to-a-canonical-unit).
+
+![Records with a unit, by conversion to the canonical unit](charts/conversion.png)
+
+## Labs on the REDCap list
+
+One bar per lab on the REDCap list, all partners pooled, sorted by the share
+harmonization improved (unit converted, mapped or inferred). Most labs arrived
+in the canonical unit; electrolytes and blood counts had about a third of
+their records converted, and urine albumin and the two ratios were almost all
+improved. Nearly every record of every lab ends with a valid value. Counts are
+rounded and small segments merged, so they differ slightly from the query
+output.
+
+![Unit outcomes for REDCap-list labs](charts/lab_unit_outcomes.png)
+
+Also as [SVG](charts/lab_unit_outcomes.svg) and
+[PDF](charts/lab_unit_outcomes.pdf); the counts are in
+[lab_unit_outcomes_table.csv](charts/lab_unit_outcomes_table.csv).
+
+## Failed or needs review
+
+| What | Records | Where it comes from |
+|---|---:|---|
+| [No unit found](#no-unit-found) | 5,058 | "Failed to find unit" in the [first table](#units-inferred) |
+| [Has a unit, can't convert](#has-a-unit-cant-convert) | 3,534 | "No fixed conversion" in the [chart above](#values-converted) |
+| [Values flagged implausible](#values-flagged-implausible-or-extreme) | 3,845 | Outside the REDCap list's plausible limits |
+| [Values flagged extreme](#values-flagged-implausible-or-extreme) | 19,922 | Inside those limits, outside the usual range |
+
+Each link gives the breakdown, the cell that shows those records, and where to
+change them. The 20,918 records with no UCUM unit aren't failures: specific
+gravity, counts, Ct values and the like, kept as recorded. Open questions are
+in [Known issues](#known-issues).
 
 ## Where the results are
 
 - `hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized` is a
   full copy of `ehr_union_clean.measurement` with added columns
   ([Appendix B](#appendix-b-added-columns)). The source table is unchanged.
+- `measurement_unit_harmonized_mactel` is the same for
+  `ehr_union_clean_mactel.measurement`, the MacTel cohort that step 12 moves
+  out of `ehr_union_clean`. It has the main table's 20 source columns, not
+  the 26 in `ehr_union_clean_mactel.measurement`: step 12 copies the MacTel
+  rows before it drops 6 columns. Its records are harmonized together with the
+  main table's, so the same rules apply, and H then splits them out. Both
+  tables join to their source tables by `measurement_id`.
 - `measurement_unit_named` is that table with concept names and unit codes
-  added (`measurement_concept_name`, `harmonized_concept_name`, `test_name`,
-  `effective_unit_code`).
+  added (`harmonized_concept_name`, `test_name`, `effective_unit_code`;
+  `measurement_concept_name` already comes with the source table).
 - `unit_mapping` says what unit each unit text means and which unit codes are
   wrong for which records, with the source and rationale of each. Its design
   is in [unit_mapping_design.md](unit_mapping_design.md).
@@ -54,8 +109,8 @@ notebook. A, B and C run in that order, and D then converts every unit.
   evidence.
 
 `unit_mapping` also holds corrections: unit codes that are wrong for some
-records, whatever set them (seconds coded as siemens, one partner's "lb" body
-weights that are ounces). Every part sees records in their corrected unit, and
+records, whatever set them (seconds coded as siemens, fluid ounces on body
+weights). Every part sees records in their corrected unit, and
 Part D writes it into the table.
 
 `no_ucum_unit` is only for quantities UCUM has no unit for. Ratios, pH,
@@ -63,12 +118,10 @@ indexes, scores, fractions, multiples of the median and optical density have
 UCUM units (`{ratio}`, `pH`, `{index}`, `[score]`, `{fraction}`, `{MOM}`,
 `{ISR}`, `[OD'U]`), and get them.
 
-![Records that arrived without a unit concept](charts/unit_assignment.png)
-
 ## Conversion to a canonical unit
 
-Each test gets one canonical unit: its most common unit, or one set by hand
-for these tests:
+A test's canonical unit is its most common unit across partners, counting equivalent codes together (mmol/L and mEq/L aren't equivalent; [iU]/L
+and [U]/L are), or one set by hand for these tests:
 
 | Test | Canonical unit |
 |---|---|
@@ -81,11 +134,13 @@ for these tests:
 
 Units convert by fixed factors (lb to kg, °F to °C, mg/L to mg/dL), and by
 molar mass or ionic charge where the analyte is known (mEq/L to mmol/L for
-sodium, potassium, chloride and bicarbonate). Mislabeled units were found by
-comparing converted medians with those of records already in the canonical
-unit, and are corrections in `unit_mapping`, applied before conversion.
-
-![Records with a unit, by conversion to the canonical unit](charts/conversion.png)
+sodium, potassium, chloride and bicarbonate). Each conversion is
+`slope * value + intercept`, set per partner, test and unit. The
+[chart above](#values-converted) counts these by `unit_conversion_method`
+([Appendix B](#appendix-b-added-columns)). Records that can't convert to it get
+no canonical unit. Mislabeled units were found by comparing converted medians with those of
+records already in the canonical unit, and are corrections in `unit_mapping`,
+applied before conversion.
 
 ## Records under the wrong concept
 
@@ -117,15 +172,15 @@ partner ids. [G_rule_tables.sql](G_rule_tables.sql) produces them.
 
 | Table | Rows | Contents |
 |---|---:|---|
-| [conversions.csv](tables/conversions.csv) | 77 | Every conversion applied |
+| [conversions.csv](tables/conversions.csv) | 70 | Every conversion applied |
 | [canonical_unit_rules.csv](tables/canonical_unit_rules.csv) | 6 | Tests whose canonical unit is set by hand |
 | [unit_corrections.csv](tables/unit_corrections.csv) | 38 | Unit codes that are wrong for some records |
-| [unit_text_judgments.csv](tables/unit_text_judgments.csv) | 105 | Unit text mapped by a typed judgment row |
+| [unit_text_judgments.csv](tables/unit_text_judgments.csv) | 87 | Unit text mapped by a typed judgment row |
 | [test_name_rules.csv](tables/test_name_rules.csv) | 48 | Part C's rules on the test name |
 | [test_concept_rules.csv](tables/test_concept_rules.csv) | 38 | Part A's rules for a test concept |
 | [source_name_rules.csv](tables/source_name_rules.csv) | 81 | Units for records with no test concept, by source test name |
 
-Left out: `unit_factors` (149 rows; `conversions.csv` shows those used) and
+Left out: `unit_factors` (149 rows; [conversions.csv](tables/conversions.csv) shows those used) and
 value bands (8).
 
 Every rule is a table in `ehr_union_clean_metrics`, and every record carries
@@ -134,14 +189,7 @@ set it.
 
 ## Known issues
 
-- **5,471 records where no unit was found:** codes and identifiers stored as
-  numbers (3,789), small tests with no rule yet (650), unit text nothing maps
-  (436), values that don't fit their test (307), junk unit text (275), and
-  records a correction leaves with no unit (14).
-- **4,643 records with a unit that can't convert:** arbitrary antibody units,
-  log viral loads, and tests holding two quantities (1,440 PT values in
-  seconds under INR, whose canonical unit is {ratio}).
-- **Records stored twice:** one partner stores 4,067 events in 17 tests under
+- **Records stored twice:** one partner stores some events twice, under
   two unit codes that differ only in case (`s` and `S`, `L` and `l`, `H` and
   `h`). Corrections give both copies the same unit, and both are kept.
   Deduplicating belongs upstream. Probes F6 and F7 in
@@ -155,8 +203,8 @@ set it.
   threshold, RV free wall S', tidal volume setting and ionized calcium hold
   two quantities, so no canonical unit covers both.
 - **Corrections whose result still doesn't match the test's other records:**
-  CEA, testosterone and expiratory minute volume (D's 17f), and 24 h urine
-  protein (19e).
+  CEA, testosterone and expiratory minute volume (E 17f), and 24 h urine
+  protein (E 19e).
 - **Records with no concept** that got a unit from a source name can't be
   checked against the list's limits, and have had no sign-off.
 - **The REDCap list against our data:**
@@ -164,9 +212,6 @@ set it.
     The upper limits sit far above nearly all EHR and survey values.
   - The list's uACR concept 3020682 has no EHR records. The data is under
     3034485 and 3001802.
-  - `import_buncreatinineratio` holds creatinine/BUN in the survey data,
-    matching its concept 3033837. EHR ratios are BUN/creatinine, under 3018311,
-    so the two aren't directly comparable.
   - The list's insulin concept 3022466 has no EHR records. EHR insulin is under
     3009413 and 3016244, in uIU/mL.
   - The list's labels differ from our UCUM codes for Na, K, Cl and total CO2
@@ -175,9 +220,67 @@ set it.
 - **Vocabulary:** `omop_vocab` maps the retired `{sgu}` (IgG) to the IgM unit
   and `{smu}` (IgM) to the IgG unit. Judgment rows override both.
 
+## Reviewing and changing the results
+
+Cells are named by notebook and number: E 15b is cell 15b of
+[E_review_outputs.sql](E_review_outputs.sql). Each cell's comment starts with
+its number, so search the notebook for it. Rules are typed in cells of Parts
+[A](A_unit_inference_range_groups.sql), [C](C_unit_inference_no_unit_no_range.sql)
+and [D](D_unit_conversion.sql), each with its reason.
+
+Query output in Databricks has exact counts, including counts under 11. This
+README and the charts don't: a small count is merged into a neighboring row or
+segment, or rounded, so some numbers here differ slightly from what the queries
+return (e.g. the starred total under [Units inferred](#units-inferred)). E7's
+chart data does this in its SQL. Treat other query output as internal; don't
+share per-lab or per-partner counts from it without the same treatment.
+
+### No unit found
+
+5,058 records have no unit, by the `unit_inference_method` that
+[Appendix A](#appendix-a-records-by-method) counts them under:
+
+| Records | Count | `unit_inference_method` | See | Change |
+|---|---:|---|---|---|
+| Codes and identifiers stored as numbers | 3,706 | not_a_quantity | E 15b | C 14 |
+| Values that don't fit their test, or small tests with no rule yet | 905 | suspect_concept, needs_review, no_concept | E 15c, E 15d, E 15e, E 5b, E 8b | C 14, C 14c, A 2, A 7 |
+| Unit text nothing maps, or a unit code a correction leaves with no unit | 350 | unmapped_string; for the code, the method that set it first | E6, E 1n, E 17f | A 1g |
+| Junk in the unit field | 97 | not_a_unit | E 11c | A 1g |
+
+E 1n lists unit text and codes whose sources disagree; a row in A 1g settles
+them.
+
+### Has a unit, can't convert
+
+3,534 records have a unit but no fixed conversion to the test's canonical unit
+(`unit_conversion_method` = no_conversion): arbitrary antibody units, log viral
+loads, and tests holding two quantities, such as 820 PT values in seconds
+under INR, whose canonical unit is {ratio}. E 19d lists them.
+
+| If | Change |
+|---|---|
+| The unit needs a factor | D 17 |
+| The test needs an analyte, for a molar mass or charge | D 17a |
+| The test's canonical unit is wrong | D 17c |
+| The records' unit is wrong | A 1g |
+
+### Values flagged implausible or extreme
+
+`value_plausibility` flags 3,845 values as implausible (outside the REDCap
+list's plausible limits) and 19,922 as extreme (inside them, outside the usual
+range), on tests on the list. E 20d counts them by test. Flagged values never
+change. E 19i lists groups (partner, test, unit) whose median is implausible,
+which means their unit is wrong; a correction in A 1g fixes that.
+
+### After a change
+
+Rerun as in [Setup and running](#setup-and-running): from the part you changed
+through D, then the gate, then E.
+
 ## Setup and running
 
-Needs read access to `ehr_union_clean.measurement` and `omop_vocab.concept`,
+Needs read access to `ehr_union_clean.measurement`,
+`ehr_union_clean_mactel.measurement` and `omop_vocab.concept`,
 and write access to `hive_metastore.ehr_union_clean_metrics`. Part 0's cell 0a
 (Python) reads the REDCap list from GitHub
 ([value-set-mapping-common](https://github.com/AI-READI/DataElementMaps/tree/main/redCapDataDictionaryWithExtension/value-set-mapping-common)
@@ -187,26 +290,45 @@ raw.githubusercontent.com.
 1. Import the `.sql` files below (Workspace > Import > File). They are in
    Databricks source format, so each splits into its cells on import.
 2. Run 0, A, B, C and D in order, each top to bottom. Part 0 only loads the
-   REDCap list; its last cell (0d) shows the list for review. A's cell 1 drops
-   and recreates `measurement_unit_harmonized`, so rerunning A means rerunning
-   B, C and D after it. Each other part clears D's columns on the records it
-   writes, so rerunning one means rerunning D after it.
-3. Run E. Every cell marked "Check" should return no rows, and every review
-   should match the expectation in its comment.
-4. To refresh `tables/`, run G, export it as `.ipynb` to
+   REDCap list. A's cell 1 drops and recreates `measurement_unit_harmonized`,
+   so rerunning A means rerunning B, C and D after it. Each other part clears
+   D's columns on the records it writes, so rerunning one means rerunning D
+   after it.
+3. Run the gate, top to bottom. Its last cell raises an error if any check
+   returned rows, and lists them.
+4. Run H, top to bottom. It moves the MacTel records to
+   `measurement_unit_harmonized_mactel` and checks that each table joins 1:1
+   to its source by `measurement_id`; its last cell raises an error if not.
+   Rerunning H means rerunning A-D and the gate first.
+5. To read the results, run E. Every review should match the expectation in
+   its comment.
+6. To refresh `tables/`, run G, export it as `.ipynb` to
    `ref_files/G_rule_tables.ipynb`, and run
    [make_tables.py](make_tables.py).
 
-| Notebook | Source |
-|---|---|
-| 0. The AI-READI REDCap list | [0_redcap_list.sql](0_redcap_list.sql) |
-| A. No unit, reference range | [A_unit_inference_range_groups.sql](A_unit_inference_range_groups.sql) |
-| B. Unit text, no unit concept | [B_unit_inference_with_source_value_but_no_unit_concept.sql](B_unit_inference_with_source_value_but_no_unit_concept.sql) |
-| C. No unit, no reference range | [C_unit_inference_no_unit_no_range.sql](C_unit_inference_no_unit_no_range.sql) |
-| D. Conversion to canonical units, plausibility | [D_unit_conversion.sql](D_unit_conversion.sql) |
-| E. Checks and review of the run | [E_review_outputs.sql](E_review_outputs.sql) |
-| F. Probes for review questions (optional) | [F_probes.sql](F_probes.sql) |
-| G. Rule tables for review (optional) | [G_rule_tables.sql](G_rule_tables.sql) |
+In the production pipeline, 0, A, B, C, D, the gate and H are to be added to the
+job for steps 11-12, as tasks after
+[drop orphan.sql](../ehr_data_harmonization_pipeline/12-union-clean/drop%20orphan.sql),
+the last step to change `ehr_union_clean.measurement`. That job is kept in
+Databricks, not in
+[omop_workflow_definition.yaml](../ehr_data_harmonization_pipeline/omop_workflow_definition.yaml),
+which stops at step 10. E, F and G are run by
+hand. Nothing here reaches the release, because step 13 exports only
+`ehr_union_clean`, and the MacTel delivery exports only
+`ehr_union_clean_mactel`.
+
+| Notebook | Source | Cells |
+|---|---|---|
+| 0. The AI-READI REDCap list | [0_redcap_list.sql](0_redcap_list.sql) | 0a-0b |
+| A. No unit, reference range | [A_unit_inference_range_groups.sql](A_unit_inference_range_groups.sql) | 1-9 |
+| B. Unit text, no unit concept | [B_unit_inference_with_source_value_but_no_unit_concept.sql](B_unit_inference_with_source_value_but_no_unit_concept.sql) | 12 |
+| C. No unit, no reference range | [C_unit_inference_no_unit_no_range.sql](C_unit_inference_no_unit_no_range.sql) | 13-16 |
+| D. Conversion to canonical units, plausibility | [D_unit_conversion.sql](D_unit_conversion.sql) | 17-20 |
+| Gate: checks that fail the run | [E_gate_checks.sql](E_gate_checks.sql) | numbered by the step checked |
+| H. MacTel split and join checks | [H_mactel_split.sql](H_mactel_split.sql) | 1-4 |
+| E. Review of the run | [E_review_outputs.sql](E_review_outputs.sql) | numbered by the step reviewed |
+| F. Probes for review questions (optional) | [F_probes.sql](F_probes.sql) | F1, F2, ... |
+| G. Rule tables for review (optional) | [G_rule_tables.sql](G_rule_tables.sql) | |
 
 Rule and decision tables, all in `hive_metastore.ehr_union_clean_metrics`:
 
@@ -227,29 +349,30 @@ are merged where a count would be under 11.
 
 | Outcome | `unit_inference_method` | Part | How | Records |
 |---|---|---|---|---:|
-| Unit | copied_from_unit_concept_id | | Arrived with a unit concept; copied into the inferred columns | 5,704,371 |
-| Unit | explicit | C | Rule on the test name | 968,631 |
-| Unit | dataset_unit | A | Copied from labeled records of the same test, any partner; medians must agree within a factor of 2 | 157,290 |
-| Unit | partner_unit, dataset_unit | C | Copied from labeled records of the same test, same partner first; medians must agree within a factor of 2 | 74,172 |
-| Unit | mapped_string | B | Unit text mapped to a standard UCUM unit by `unit_mapping` | 54,544 |
-| Unit | explicit | A | Set by hand per test (including pH, INR and ratios in {ratio}) | 22,853 |
-| Unit | range_match | A | Copied from labeled records of the same test, same partner and same reference range; no median check | 14,064 |
+| Unit | copied_from_unit_concept_id | | Arrived with a unit concept; copied into the inferred columns | 5,041,892 |
+| Unit | explicit | C | Rule on the test name | 1,003,567 |
+| Unit | mapped_string | B | Unit text mapped to a standard UCUM unit by `unit_mapping` | 231,597 |
+| Unit | dataset_unit | A | Copied from labeled records of the same test, any partner; medians must agree within a factor of 2 | 157,294 |
+| Unit | partner_unit, dataset_unit | C | Copied from labeled records of the same test, same partner first; medians must agree within a factor of 2 | 73,975 |
+| Unit | range_match | A | Copied from labeled records of the same test, same partner and same reference range; no median check | 13,568 |
+| Unit | explicit | A | Set by hand per test (including pH, INR and ratios in {ratio}) | 13,057 |
 | Unit | source_name | A | No test concept; unit from the source test name | 1,033 |
 | Unit | source_name | C | No test concept; unit from the source test name | 479 |
 | Unit | value_split | C | Test holds two units; each record's unit set by its value (body temperature under 45 is °C, over 80 is °F) | 340 |
-| Unit | partner_unit | A | Copied from labeled records of the same test, same partner; medians must agree within a factor of 2 | 160 |
-| No UCUM unit exists | no_ucum_unit | C | Rule on the test name (counts, Ct values, RAST class) | 14,784 |
-| No UCUM unit exists | no_ucum_unit | A | Specific gravity | 9,628 |
-| Failed to find unit | not_a_quantity | C | Codes and IDs stored as numbers (EKG impression codes, HLA alleles, case numbers) | 3,789 |
-| Failed to find unit | needs_review | C | No rule yet | 644 |
-| Failed to find unit | unmapped_string | B | Unit text nothing maps: DL/VA units, assay-specific units such as FLU and CU, per-ejaculate counts | 436 |
-| Failed to find unit | not_a_unit, no_ucum_unit | B | Junk in the unit field ("Possible", "PharmD"), or a quantity with no UCUM unit | 275 |
+| Unit | partner_unit | A | Copied from labeled records of the same test, same partner; medians must agree within a factor of 2 | 159 |
+| No UCUM unit exists | no_ucum_unit | C | Rule on the test name (counts, Ct values, RAST class) | 15,032 |
+| No UCUM unit exists | no_ucum_unit | A | Specific gravity | 5,780 |
+| No UCUM unit exists | no_ucum_unit | B | Unit text for a quantity with no UCUM unit (needle gauge, activity coefficient) | 106 |
+| Failed to find unit | not_a_quantity | C | Codes and IDs stored as numbers (EKG impression codes, HLA alleles, case numbers) | 3,706 |
+| Failed to find unit | needs_review | C | No rule yet | 597 |
+| Failed to find unit | unmapped_string | B | Unit text nothing maps: DL/VA units, assay-specific units such as CU, per-ejaculate counts; plus the `{log}` records a correction leaves with no unit\* | 350 |
 | Failed to find unit | suspect_concept | C | Values don't fit the test (total lung capacity stored under RV/TLC) | 225 |
-| Failed to find unit | suspect_concept, needs_review, no_concept | A | Values don't fit the test, undetermined, or no test concept and no source-name rule | 88 |
+| Failed to find unit | not_a_unit | B | Junk in the unit field ("Possible", "PharmD") | 97 |
+| Failed to find unit | suspect_concept, needs_review, no_concept | A | Values don't fit the test, undetermined, or no test concept and no source-name rule | 83 |
 
-The 14 records a correction leaves with no unit keep the method that set their
-unit first, so this table's methods add up to 14 fewer failed records than the
-opening table.
+\* Those records keep `copied_from_unit_concept_id`, the method that set
+their unit first; they're counted here, not in its row, as in the
+[opening table](#units-inferred).
 
 ## Appendix B: added columns
 
@@ -269,7 +392,7 @@ each is empty for:
 | `value_plausibility` | string | For tests on the REDCap list: `implausible` (outside the list's plausible limits), `extreme` (inside them, outside its usual range) or `plausible`, comparing `harmonized_value_as_number` with the limits converted to the canonical unit | tests not on the list, and every record with no harmonized value |
 | `unit_corrected_from` | string | The unit code a `unit_mapping` correction replaced; `inferred_unit_concept_id` holds the corrected unit (0 where the correction leaves no unit) | every record no correction touched |
 
-The 780,246 records with no numeric value get
+Records with no numeric value get
 `harmonized_measurement_concept_id`, plus the method and inferred unit when
 they arrived with a unit concept; the last five columns stay empty. Check E3
 confirms that no numeric record with a unit is missing one of its columns.

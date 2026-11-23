@@ -8,9 +8,9 @@ S,,False,unit,s,judgment,UCUM S is siemens; used for seconds
 [U]/mL,(?i)^mycoplasma,False,withheld,,judgment,no unit makes the values fit
 [degC],,False,unit,Cel,maps_to,not standard UCUM (8653 degree Celsius); OMOP maps it to Cel
 [foz_us],(?i)weight,False,unit,[oz_av],judgment,fluid ounce on a weight: avoirdupois ounce
-[lb_us],^Body weight$,True,unit,[oz_av],judgment,values fit body weights as ounces; another partner's lb records match its kg (20c)
 [{index'value}],,False,unit,{signal}/[{CO'ratio}],maps_to,not standard UCUM (8608 index value); OMOP maps it to {signal}/[{CO'ratio}]
 deg,(?i)temperature,True,unit,[degF],judgment,temperature values fit Fahrenheit
+dyn.sec/cm5,(?i)vascular resistance index,False,unit,dyn.s/cm5/m2,judgment,an SVR index is per m2 of body surface: the source labels it with the SVR unit
 g/[dose],(?i)24 hour urine,False,unit,g/(24.h),judgment,per collection on a 24 hour urine test: per 24 hours
 kg,(?i)^tidal volume,True,unit,mL/kg,judgment,tidal volume values fit mL/kg
 l,,False,unit,L,maps_to,not standard UCUM (9540 liter [volume]); OMOP maps it to L

@@ -1,143 +1,26 @@
 -- Databricks notebook source
--- Unit inference, Part E: review the outputs of a full A-D run.
+-- Unit inference, Part E: review the outputs of a full run, for someone
+-- reading the results. It isn't part of the batch run.
 --
--- Read-only: every cell is a SELECT. Run after 0, A, B, C and D, top to
--- bottom, and read every cell's result. Each cell repeats a check or review
--- query from A-D (named in its comment, which also says what to expect);
--- the queries stay in A-D too, so a change there has to be copied here.
--- Cells E1-E6 are the only queries that aren't in A-D.
+-- Read-only: every cell is a SELECT. Run after H_mactel_split.sql, top to
+-- bottom. Cells are numbered after the step of 0 or A-D they review, and each
+-- says what to expect where that's been settled.
 --
--- Checks (should be empty): 0c, 1e, 1h, 1k, 1m, 4b, 7b, 14a, 14d, 17e,
--- 19h, E2, E3, E5.
---
--- Counts: the expected counts are from the 2026-11-03 run (7,027,806
--- numeric records). A change in the source table moves them slightly.
-
+-- Counts: the expected counts are from the 2026-11-20 run (6,562,937
+-- numeric records); a rebuilt source table changes them. None is under 11,
+-- and a few are rounded ("about") where the exact figure minus a README
+-- count would give back one that is.
 
 -- COMMAND ----------
 
--- 1e (Part A, cell 1d). Check: records moved to another concept by
---     measurement_concept_corrections whose value doesn't fit it
---     (total/HDL at or below 1).
---     Expect: no rows.
-SELECT t.data_partner_id, t.measurement_concept_id, t.harmonized_measurement_concept_id,
-       COUNT(*) AS n, min(t.value_as_number) AS min_value, max(t.value_as_number) AS max_value
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
-JOIN hive_metastore.ehr_union_clean_metrics.measurement_concept_corrections c
-  ON c.measurement_concept_id = t.measurement_concept_id
-WHERE t.value_as_number <= c.implausible_max
-GROUP BY 1, 2, 3;
-
-
--- COMMAND ----------
-
--- 1h (Part A, cell A1b). Check: judgment rows that can't be used (target not standard
---     UCUM, decision and target disagree, no rationale, untrimmed text
---     key, duplicate key).
---     Expect: no rows.
-SELECT 'target not a standard UCUM code' AS problem, j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units u ON u.concept_code = j.target_code
-WHERE j.target_code IS NOT NULL AND u.concept_id IS NULL
-UNION ALL
-SELECT 'decision and target disagree', j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-WHERE (j.decision = 'unit') <> (j.target_code IS NOT NULL)
-   OR NOT (j.kind = 'text' AND j.decision IN ('unit', 'no_ucum_unit', 'not_a_unit')
-           OR j.kind = 'correction' AND j.decision IN ('unit', 'withheld'))
-UNION ALL
-SELECT 'no rationale', j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-WHERE trim(COALESCE(j.rationale, '')) = ''
-UNION ALL
-SELECT 'text key not trimmed', j.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_judgments j
-WHERE j.kind = 'text' AND j.unit_source_value <> trim(j.unit_source_value)
-UNION ALL
-SELECT 'duplicate key (text ignoring case)', j.kind, j.unit_source_value, j.unit_code,
-       j.test_pattern, j.data_partner_id, j.decision, j.target_code, j.rationale
-FROM (SELECT *, COUNT(*) OVER (PARTITION BY kind, lower(unit_source_value), unit_code,
-                                            test_pattern, data_partner_id) AS n_same_key
-      FROM hive_metastore.ehr_union_clean_metrics.unit_judgments) j
-WHERE j.n_same_key > 1;
-
--- COMMAND ----------
-
--- 1k (Part A, cell A1c). Check: correction rows that clash (duplicate key, tie,
---     maps_to row on a standard UCUM code, chain).
---     Expect: no rows.
-SELECT 'duplicate key' AS problem,
-       concat_ws(' | ', unit_code, test_pattern, CAST(data_partner_id AS STRING)) AS item,
-       COUNT(*) AS n
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE kind = 'correction'
-GROUP BY unit_code, test_pattern, data_partner_id
-HAVING COUNT(*) > 1
-UNION ALL
-SELECT 'tie', concat_ws(' | ', CAST(data_partner_id AS STRING), test_name, from_code), n_results
-FROM hive_metastore.ehr_union_clean_metrics.unit_correction_keys
-WHERE n_results > 1
-UNION ALL
-SELECT 'maps_to row on a standard UCUM code (would hit every record in that unit)',
-       unit_code, 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE kind = 'correction' AND source = 'maps_to'
-  AND unit_code IN (SELECT concept_code FROM hive_metastore.ehr_union_clean_metrics.ucum_units)
-UNION ALL
-SELECT 'chain', concat_ws(' | ', CAST(k.data_partner_id AS STRING), k.test_name,
-                          concat(k.from_code, ' -> ', k.ucum_code, ' -> ', COALESCE(c.ucum_code, c.decision))),
-       1
-FROM hive_metastore.ehr_union_clean_metrics.unit_correction_keys k
-JOIN hive_metastore.ehr_union_clean_metrics.unit_mapping c
-  ON  c.kind = 'correction'
-  AND c.unit_code = k.ucum_code
-  AND (c.test_pattern IS NULL OR k.test_name RLIKE c.test_pattern)
-  AND (c.data_partner_id IS NULL OR c.data_partner_id = k.data_partner_id);
-
--- COMMAND ----------
-
--- 1m (Part A, cell A1d). Check: text rows (key twice, non-standard unit, decision
---     and unit disagree, UCUM-code text decided by case, records with no
---     text row).
---     Expect: no rows.
-SELECT 'text key twice' AS problem, unit_source_value AS item, COUNT(*) AS n
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE kind = 'text'
-GROUP BY unit_source_value HAVING COUNT(*) > 1
-UNION ALL
-SELECT 'unit not standard UCUM', COALESCE(m.unit_source_value, m.unit_code), 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping m
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units u ON u.concept_id = m.unit_concept_id
-WHERE m.unit_concept_id IS NOT NULL AND u.concept_id IS NULL
-UNION ALL
-SELECT concat('decision ', decision, ' with unit ', COALESCE(ucum_code, 'none')),
-       COALESCE(unit_source_value, unit_code), 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
-WHERE (decision = 'unit') <> (unit_concept_id IS NOT NULL)
-UNION ALL
-SELECT concat('UCUM code text decided as ', m.decision, ' ', COALESCE(m.ucum_code, ''),
-              ' by ', COALESCE(m.matched_by, '-')),
-       m.unit_source_value, 1
-FROM hive_metastore.ehr_union_clean_metrics.unit_mapping m
-JOIN hive_metastore.ehr_union_clean_metrics.ucum_units u ON u.concept_code = m.unit_source_value
-WHERE m.kind = 'text'
-  AND (m.matched_by IS DISTINCT FROM 'exact'
-       OR m.decision NOT IN ('unit', 'review')
-       OR (m.decision = 'unit' AND m.ucum_code <> m.unit_source_value))
-UNION ALL
-SELECT 'text with no row', trim(t.unit_source_value), COUNT(*)
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
-LEFT ANTI JOIN hive_metastore.ehr_union_clean_metrics.unit_mapping m
-  ON m.kind = 'text' AND m.unit_source_value = trim(t.unit_source_value)
-WHERE t.value_as_number IS NOT NULL
-  AND t.unit_source_value IS NOT NULL
-  AND COALESCE(t.unit_concept_id, 0) = 0
-GROUP BY trim(t.unit_source_value);
-
--- COMMAND ----------
-
--- 1n (Part A). Review: review rows, with candidates. These records have no
---     unit until a judgment row settles them.
+-- 1n (Part A). Review: every review row, with its candidates. These records get no
+--     unit until settled. A judgment row (1g) settles text with no exact
+--     match whose case variants disagree, and exact sources that disagree
+--     when it picks one of their units, unless the text is itself a UCUM
+--     code. Otherwise the data has to agree first: a correction row for the
+--     arrived units that are wrong. A review correction row is
+--     an arrived unit OMOP maps to no standard UCUM unit, or to several;
+--     a judgment correction row settles it.
 --     Expect: 8492 {log} only (no Maps to target, left in
 --     review like the other log viral loads).
 SELECT kind, COALESCE(unit_source_value, unit_code) AS unit_text_or_code,
@@ -148,8 +31,12 @@ ORDER BY n DESC NULLS LAST, unit_text_or_code;
 
 -- COMMAND ----------
 
--- 1o (Part A). Review: judgment rows an automatic source already covers.
---     Expect: one row, text U, covered since the correction u -> [U].
+-- 1o (Part A). Review: judgment rows an automatic source already covers with the
+--     same unit; they can be deleted from 1g. A text judgment row covers
+--     every case variant of its spelling, so delete it only if all its
+--     spellings are listed. Correction rows: the judgment matches OMOP's
+--     Maps to for the code.
+--     Expect: no rows.
 WITH a AS (
   SELECT t,
          COUNT(DISTINCT CASE WHEN exact THEN unit_concept_id END) AS n_exact_units,
@@ -175,9 +62,10 @@ ORDER BY kind, key;
 
 -- COMMAND ----------
 
--- 1p (Part A). Review: text decided by ignoring case, or sent to review
---     because its case variants disagree.
---     Expect: 11 rows, none where case changes the meaning.
+-- 1p (Part A). Review: text decided by ignoring case (no exact match), or sent to
+--     review because its case variants disagree. Look for case that
+--     changes the meaning (s/S, h/H, mU/MU).
+--     Expect: 10 rows, none where case changes the meaning.
 SELECT unit_source_value, decision, ucum_code, source, rationale, candidates, n, tests,
        median, test_median
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
@@ -186,19 +74,13 @@ ORDER BY decision, n DESC;
 
 -- COMMAND ----------
 
--- 4b (Part A, cell A2). Check: explicit concept rules whose UCUM code
---     didn't resolve to a concept.
---     Expect: no rows.
-SELECT r.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_concept_rules r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = r.unit_code
-WHERE r.rule = 'explicit' AND ru.concept_id IS NULL;
-
--- COMMAND ----------
-
--- 5a (Part A, cell A3). Review: Part A concept-level decisions by method.
---     Expect: n_records total 205,116; explicit 22,853 (pH, INR, ratios,
---     indexes); no_ucum_unit 9,037 (specific gravity only); suspect_concept 82.
+-- 5a (Part A). Review: how many groups and records each method covers
+--     The decision table's n includes the MacTel records (rule evidence,
+--     built before H moves them out), so the counts here are rounded; E1
+--     has the exact ones.
+--     Expect: n_records total about 191,200; explicit about 13,100 (pH, INR,
+--     ratios, indexes); no_ucum_unit about 5,200 (specific gravity only);
+--     suspect_concept about 80.
 --     no_concept rows are the concept-0 groups that 8b decides.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions
@@ -207,17 +89,17 @@ ORDER BY n_records DESC;
 
 -- COMMAND ----------
 
--- 7b (Part A, cell A6). Check: source-name rule codes that don't resolve
---     to a UCUM concept.
---     Expect: no rows.
-SELECT r.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_source_name_rules r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = r.unit_code
-WHERE r.unit_code IS NOT NULL AND ru.concept_id IS NULL;
+-- 5b (Part A). Review: every group, with the chosen unit spelled out
+SELECT d.unit_inference_method, d.data_partner_id, d.harmonized_measurement_concept_id, d.concept_name,
+       d.range_low, d.range_high, d.n, d.med,
+       uc.concept_code AS inferred_unit, d.evidence_n, d.evidence_median, d.note
+FROM hive_metastore.ehr_union_clean_metrics.unit_inference_range_decisions d
+LEFT JOIN omop_vocab.concept uc ON uc.concept_id = d.inferred_unit_concept_id
+ORDER BY d.n DESC;
 
 -- COMMAND ----------
 
--- 8b (Part A, cell A7). Review: no-concept decisions, every group.
+-- 8b (Part A). Review: no-concept decisions, every group.
 --     Expect: almost all source_name (ratios, pH, INR, indexes and NASH
 --     scores with their UCUM unit); no_ucum_unit only for specific gravity.
 --     no_concept only for PPD and "Viscosity, Serum"; any other no_concept
@@ -228,11 +110,16 @@ ORDER BY unit_inference_method, n DESC;
 
 -- COMMAND ----------
 
--- 11b (Part B, cell B1). Review: unit_mapping's text rows by decision and
+-- 11b (Part B). Review: unit_mapping's text rows by decision and
 --      source.
---      Expect: 55,255 records in all. Unit 54,544 (judgment 35,762,
---      ucum_code 14,483, arrived_unit 4,258, maps_to 41); unmapped 436;
---      not_a_unit 274; no_ucum_unit under 11; no review rows.
+--      unit_mapping's n includes the MacTel records (rule evidence, built
+--      before H moves them out), so the counts here are rounded; E1 has
+--      the exact ones.
+--      Expect: about 232,200 records in all. Unit about 231,700
+--      (redcap_label about 179,800, nearly all mmHg; judgment about 36,000;
+--      ucum_code about 14,500; arrived_unit about 1,300; maps_to a
+--      handful); unmapped about 350; no_ucum_unit about 100 (needle gauge,
+--      activity coefficient); not_a_unit about 100; no review rows.
 SELECT decision, source, matched_by, COUNT(*) AS n_texts, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text'
@@ -241,50 +128,113 @@ ORDER BY n_records DESC;
 
 -- COMMAND ----------
 
--- 14a (Part C, cell C1). Check: explicit name rules without a valid UCUM
---      code, and non-explicit rules with one.
---      Expect: no rows.
-SELECT r.*
-FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_rules r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = r.unit_code
-WHERE (r.rule = 'explicit') <> (ru.concept_id IS NOT NULL);
+-- 11c (Part B). Review: every text, with the unit it got, where from, and the tests
+--      it's on
+SELECT decision, source, unit_source_value, ucum_code, n, tests, median, test_median,
+       rationale, candidates
+FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
+WHERE kind = 'text'
+ORDER BY decision, source, n DESC;
 
 -- COMMAND ----------
 
--- 14d (Part C). Check: value bands with bad codes, gaps, overlaps, open ends.
---      Expect: no rows.
-WITH v AS (
-  SELECT v.*, ru.concept_id AS ucum_concept_id,
-         lag(v.value_max) OVER (PARTITION BY v.test_pattern ORDER BY v.value_min NULLS FIRST) AS prev_max,
-         ROW_NUMBER() OVER (PARTITION BY v.test_pattern ORDER BY v.value_min NULLS FIRST) AS rn,
-         COUNT(*) OVER (PARTITION BY v.test_pattern) AS n_bands
-  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_value_rules v
-  LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = v.unit_code
+-- 13b (Part C). Review: overall shape
+SELECT CASE WHEN COALESCE(r.harmonized_measurement_concept_id, 0) = 0 THEN 'concept 0'
+            ELSE 'has concept' END AS concept,
+       mt.concept_name AS measurement_type,
+       r.range_low IS NOT NULL AS has_range_low,
+       COUNT(*) AS n,
+       COUNT(DISTINCT r.test_id) AS n_tests,
+       COUNT(DISTINCT r.data_partner_id) AS n_partners
+FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
+LEFT JOIN omop_vocab.concept mt ON mt.concept_id = r.measurement_type_concept_id
+GROUP BY 1, 2, 3
+ORDER BY n DESC;
+
+-- COMMAND ----------
+
+-- 13c (Part C). Review: one row per test, biggest first. cum_pct shows how many tests
+--      cover most of the records. frac_integer near 1 with a small range
+--      or few distinct values suggest a score; n_evidence is how many
+--      records of the same test have a unit to copy.
+--      (The table has no value_source_value column.)
+WITH t AS (
+  SELECT r.test_id, r.test_name,
+         COUNT(*) AS n,
+         COUNT(DISTINCT r.data_partner_id) AS n_partners,
+         percentile_approx(r.value_as_number, array(0.05, 0.5, 0.95)) AS pct,
+         min(r.value_as_number) AS min_value,
+         max(r.value_as_number) AS max_value,
+         avg(CASE WHEN r.value_as_number = floor(r.value_as_number) THEN 1D ELSE 0D END) AS frac_integer,
+         COUNT(DISTINCT r.value_as_number) AS n_distinct
+  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
+  GROUP BY r.test_id, r.test_name
+),
+ev AS (
+  SELECT test_id, COUNT(*) AS n_evidence
+  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_evidence
+  WHERE test_id IN (SELECT test_id FROM t)
+  GROUP BY 1
 )
-SELECT * FROM (
-  SELECT CASE WHEN v.unit_code IS NOT NULL AND v.ucum_concept_id IS NULL THEN 'not a UCUM code'
-              WHEN (v.method = 'value_split') <> (v.unit_code IS NOT NULL)
-                OR v.method NOT IN ('value_split', 'no_ucum_unit', 'needs_review', 'suspect_concept')
-                                                                         THEN 'method and unit_code disagree'
-              WHEN v.rn = 1 AND v.value_min IS NOT NULL                  THEN 'first band has a lower bound'
-              WHEN v.rn = v.n_bands AND v.value_max IS NOT NULL          THEN 'last band has an upper bound'
-              WHEN v.rn > 1 AND NOT (v.value_min <=> v.prev_max)         THEN 'gap or overlap with previous band'
-              WHEN v.value_min >= v.value_max                            THEN 'empty band'
-         END AS problem,
-         v.*
-  FROM v
-) WHERE problem IS NOT NULL;
+SELECT t.test_name, t.test_id, t.n,
+       round(100 * SUM(t.n) OVER (ORDER BY t.n DESC ROWS UNBOUNDED PRECEDING)
+                 / SUM(t.n) OVER (), 1) AS cum_pct,
+       t.n_partners, t.min_value, t.pct[0] AS p05, t.pct[1] AS median, t.pct[2] AS p95,
+       t.max_value, round(t.frac_integer, 2) AS frac_integer, t.n_distinct,
+       COALESCE(ev.n_evidence, 0) AS n_evidence
+FROM t
+LEFT JOIN ev ON ev.test_id = t.test_id
+ORDER BY t.n DESC;
+
+-- COMMAND ----------
+
+-- 13d (Part C). Lookup: OMOP UCUM spellings for units the name rules need.
+--      'data' rows: the unit concepts that unit strings like dynes-sec/cm5
+--      and mph already carry in the table. 'UCUM' rows: candidate concepts.
+--      Rules 45 and 46 in cell 14 (SVR) use the codes found here (OMOP
+--      spells the two inconsistently: dyn.sec/cm5, dyn.s/cm5/m2). There is
+--      no mile-per-hour concept, so Treadmill MPH has no rule.
+SELECT 'data' AS src, m.unit_source_value AS unit_string, u.concept_id, u.concept_code,
+       u.concept_name, u.vocabulary_id, u.invalid_reason, COUNT(*) AS n
+FROM ehr_union_clean.measurement m
+JOIN omop_vocab.concept u ON u.concept_id = m.unit_concept_id
+WHERE m.unit_source_value RLIKE '(?i)dyn|mph|mi/h|mile'
+GROUP BY 1, 2, 3, 4, 5, 6, 7
+UNION ALL
+SELECT 'UCUM', NULL, concept_id, concept_code, concept_name, vocabulary_id, invalid_reason, NULL
+FROM omop_vocab.concept
+WHERE vocabulary_id = 'UCUM'
+  AND (concept_code RLIKE 'dyn|mi_' OR concept_name RLIKE '(?i)dyne|mile')
+ORDER BY src, n DESC, concept_code;
+
+-- COMMAND ----------
+
+-- 14b (Part C). Review: tests each name rule hits, with the rule that wins.
+--      Look for tests a pattern catches by accident.
+WITH t AS (
+  SELECT r.test_id, r.test_name,
+         COUNT(*) AS n, percentile_approx(r.value_as_number, 0.5) AS median
+  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records r
+  GROUP BY r.test_id, r.test_name
+)
+SELECT ru.priority, ru.test_pattern, ru.rule, ru.unit_code, t.test_name, t.n, t.median,
+       ru.priority = min(ru.priority) OVER (PARTITION BY t.test_id) AS wins
+FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_rules ru
+LEFT JOIN t ON t.test_name RLIKE ru.test_pattern
+ORDER BY ru.priority, t.n DESC;
 
 -- COMMAND ----------
 
 -- 15a (Part C). Review: Part C decisions by method, per (partner, test),
 --      before 16 splits value_split groups into bands.
---      Expect: total 1,063,064; explicit 968,631 (scores, pain scales,
---      pH, ratios included); no_ucum_unit 14,784 (counts, Ct values, RAST
---      class; 108 of them "Specific Gravity, URN, Externa" from the
---      source-name list); needs_review 644; value_split 565; source_name 13
---      groups, 479 records (F5 lists them). E1 has the per-record counts
---      after the split.
+--      The decision table's n includes the MacTel records (rule evidence,
+--      built before H moves them out), so the counts here are rounded.
+--      Expect: total about 1,098,000; explicit about 1,003,600 (scores,
+--      pain scales, pH, ratios included); no_ucum_unit about 15,000
+--      (counts, Ct values, RAST class; about 100 of them "Specific Gravity,
+--      URN, Externa" from the source-name list); needs_review about 600;
+--      value_split about 600; source_name 13 groups, about 500 records (F5
+--      lists them). E1 has the exact per-record counts after the split.
 SELECT unit_inference_method, COUNT(*) AS n_groups, SUM(n) AS n_records
 FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions
 GROUP BY 1
@@ -292,10 +242,25 @@ ORDER BY n_records DESC;
 
 -- COMMAND ----------
 
--- 15c (Part C). Review: needs_review, one row per test across partners.
---      Expect: log viral loads, Treadmill MPH (28), Creatinine/Protein [Mass
---      Ratio] in Urine (94), Physical findings of Skin (69),
---      Aldosterone/Renin ratio (32), plus one-offs. Band-level needs_review
+-- 15b (Part C). Review: every group with a unit or rule, biggest first. Compare med
+--      with evidence_median, and scan evidence_units for a test that carries
+--      two units close enough to both pass the factor-2 check (kg vs lb).
+SELECT d.unit_inference_method, d.test_name, d.data_partner_id, d.n,
+       d.p05, d.med, d.p95, u.concept_code AS inferred_unit,
+       d.evidence_n, d.evidence_median, d.evidence_units, d.note
+FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_decisions d
+LEFT JOIN omop_vocab.concept u ON u.concept_id = d.inferred_unit_concept_id
+WHERE d.unit_inference_method <> 'needs_review'
+ORDER BY d.n DESC;
+
+-- COMMAND ----------
+
+-- 15c (Part C). Review: needs_review, one row per test across partners. These are
+--      what the name rules (14) are for. evidence_units shows units the test
+--      has elsewhere whose medians didn't fit.
+--      Expect: Creatinine/Protein [Mass Ratio] in Urine (94), Physical
+--      findings of Skin (69), log viral loads, Aldosterone/Renin ratio (28),
+--      plus small ones. Band-level needs_review
 --      (15d) isn't here.
 SELECT test_name, test_id, SUM(n) AS n, COUNT(*) AS n_partners,
        min(p05) AS min_p05, percentile_approx(med, 0.5) AS med_of_medians, max(p95) AS max_p95,
@@ -308,7 +273,8 @@ ORDER BY n DESC;
 
 -- COMMAND ----------
 
--- 15d (Part C). Review: value_split records by band, as 16 assigns them.
+-- 15d (Part C). Review: value_split records by band, as 16 assigns them. Each band's medians should look like its unit; band NULL means
+--      the test matched no band pattern (14c) and goes to needs_review.
 --      Expect: six rows, no NULL band: body temperature Cel and [degF],
 --      protein/creatinine mg/mg and mg/g, RV/TLC % and under 8
 --      suspect_concept 225. No HDL/total row (it's corrected in Part A).
@@ -329,34 +295,59 @@ ORDER BY 1, 2, 3 NULLS FIRST;
 
 -- COMMAND ----------
 
--- 17e (Part D). Check: bad or duplicate unit codes, duplicate bridges.
---      Expect: no rows.
-WITH codes AS (
-  SELECT 'unit_factors' AS src, unit_code FROM hive_metastore.ehr_union_clean_metrics.unit_factors
-  UNION ALL
-  SELECT 'canonical_unit_rules', unit_code FROM hive_metastore.ehr_union_clean_metrics.canonical_unit_rules
-)
-SELECT concat(c.src, ': not a UCUM code') AS problem, c.unit_code AS item
-FROM codes c
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.ucum_units ru ON ru.concept_code = c.unit_code
-WHERE ru.concept_id IS NULL
-UNION ALL
-SELECT 'unit_factors: duplicate code', unit_code
-FROM hive_metastore.ehr_union_clean_metrics.unit_factors
-GROUP BY unit_code HAVING COUNT(*) > 1
-UNION ALL
-SELECT 'duplicate bridge', concat_ws(' ', analyte, from_base, to_base)
-FROM hive_metastore.ehr_union_clean_metrics.unit_analyte_bridges
-GROUP BY analyte, from_base, to_base HAVING COUNT(*) > 1;
+-- 15e (Part C). Review: Residual volume/Total capacity against the
+--      lung-volume tests that have units. A median near TLC in L would
+--      mean the field holds TLC, not the ratio.
+--      part_d marks Part C's records, which show the unit C gave them;
+--      suspect_concept records show no unit.
+SELECT test_id, test_name, effective_unit_code AS unit,
+       range_high IS NULL AND unit_source_value IS NULL AS part_d,
+       COUNT(*) AS n,
+       percentile_approx(value_as_number, array(0.05, 0.25, 0.5, 0.75, 0.95)) AS pct
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_named
+WHERE value_as_number IS NOT NULL
+  AND test_name RLIKE '(?i)residual volume|total (lung )?capacity|^TLC|RV/TLC'
+GROUP BY test_id, test_name, effective_unit_code, 4
+ORDER BY test_name, n DESC;
 
 -- COMMAND ----------
 
--- 17f (Part D). Review: every correction row with the records it decided.
---      Expect: ratio near 1 on rows with n. maps_to rows for 9117
---      mL/min/1.73.m2 (about 6,264), 9540 l (835), 8644 s/{CO} (99),
---      8653 [degC] (86), 8608 [{index'value}] (34), 8500 {sau};
---      judgment rows for {sgu} and {smu}; S and H on clotting
---      times and durations. Withheld rows: under 11 records.
+-- 15f (Part C). Review: RV/TLC holds two values per exam (438 = 2 x 219), one near
+--      3-6 and one near 30-40. If the low one is TLC in L, then
+--      100 * RV / low should equal high. match_2pt counts exams where they
+--      agree within 2 points.
+--      Expect: 214 exams, all matching.
+WITH r AS (
+  SELECT person_id, measurement_date, harmonized_measurement_concept_id AS c, value_as_number AS v
+  FROM hive_metastore.ehr_union_clean_metrics.unit_no_range_records
+  WHERE harmonized_measurement_concept_id IN (21493446, 21493126)  -- RV/TLC, RV
+),
+e AS (
+  SELECT person_id, measurement_date,
+         max(CASE WHEN c = 21493126 THEN v END) AS rv,
+         min(CASE WHEN c = 21493446 THEN v END) AS low,
+         max(CASE WHEN c = 21493446 THEN v END) AS high,
+         count_if(c = 21493446) AS n_ratio
+  FROM r GROUP BY 1, 2
+)
+SELECT COUNT(*) AS n_exams,
+       count_if(abs(100 * rv / low - high) <= 2) AS match_2pt
+FROM e;
+
+-- COMMAND ----------
+
+-- 17f (Part D). Review: every correction row (Part A, 1i), with the records it
+--      decided (17d). ratio = median / test_median: near 1 when the
+--      records look like the test's records already in the target unit.
+--      maps_to rows are OMOP's Maps to for an arrived unit that isn't
+--      standard UCUM; a wrong one gets a judgment row in 1g. Rows with no
+--      n matched no numeric records.
+--      Expect: ratio near 1 on rows with n, except CEA, testosterone and
+--      expiratory minute volume (README, Known issues). maps_to rows for 9117
+--      mL/min/1.73.m2 (653), 8653 [degC] (86), 8644 s/{CO},
+--      8608 [{index'value}], 8500 {sau}; judgment rows for {sgu} and {smu};
+--      S and H on clotting times and durations; dyn.sec/cm5 on SVR and PVR
+--      index tests (1,527). Withheld rows: no records.
 SELECT unit_code, test_pattern, data_partner_id, decision, ucum_code, source, n, tests,
        median, test_median, round(median / NULLIF(test_median, 0), 2) AS ratio,
        rationale, candidates
@@ -374,36 +365,34 @@ SELECT * FROM hive_metastore.ehr_union_clean_metrics.redcap_sources;
 
 -- COMMAND ----------
 
--- 0c (Part 0). Check: list rows that can't be used as they stand.
---      Expect: no rows.
-SELECT 'two units for one concept' AS problem, concept_name AS item
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests WHERE n_units > 1
-UNION ALL
-SELECT 'two sets of limits for one concept', concept_name
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests WHERE n_limit_sets > 1
-UNION ALL
-SELECT 'list unit is not a UCUM concept', concat(concept_name, ': ', CAST(list_unit_concept_id AS STRING))
+-- 0d (Part 0). Review: the list as the EHR notebooks use it, one row per concept.
+--     list_unit_code: the list's unit as a UCUM code (only used to convert
+--     the limits; our canonical units stay UCUM, e.g. mmol/L not mEq/L).
+--     imp: outside = implausible; ext: outside = clinically extreme. Rows
+--     with no limits are tests 09 gives none for; Part D only flags tests
+--     with limits.
+SELECT concept_id, concept_name, COALESCE(lookup_fields, mapped_fields) AS fields,
+       list_unit_code, limit_fields, imp_lo, imp_hi, ext_lo, ext_hi
 FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests
-WHERE list_unit_concept_id IS NOT NULL AND COALESCE(list_unit_vocabulary, '') <> 'UCUM'
-UNION ALL
-SELECT 'limits but no list unit', concept_name
-FROM hive_metastore.ehr_union_clean_metrics.redcap_list_tests
-WHERE imp_lo IS NOT NULL AND list_unit_code IS NULL
-UNION ALL
-SELECT '09 field not in the unit lookup', r.field
-FROM hive_metastore.ehr_union_clean_metrics.redcap_value_limits r
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.redcap_unit_lookup u ON u.lookup_key = r.field
-WHERE u.lookup_key IS NULL
-UNION ALL
-SELECT 'lookup concept not in the mapping', concat(u.lookup_key, ': ', u.target_concept_id)
-FROM hive_metastore.ehr_union_clean_metrics.redcap_unit_lookup u
-JOIN omop_vocab.concept c ON c.concept_id = try_cast(u.target_concept_id AS BIGINT)
-LEFT JOIN hive_metastore.ehr_union_clean_metrics.redcap_list_tests l ON l.concept_id = c.concept_id
-WHERE l.concept_id IS NULL;
+ORDER BY imp_lo IS NULL, concept_name;
 
 -- COMMAND ----------
 
--- 18d (Part D). Review: tests each canonical-unit rule hits.
+-- 18c (Part D). Review: analyte assignments, with each test's units.
+--      Look for tests that got the wrong analyte.
+SELECT a.analyte, t.test_name, SUM(t.n) AS n,
+       array_join(collect_list(concat(t.unit_code, ' (', CAST(t.n AS STRING), ')')), ', ') AS units
+FROM hive_metastore.ehr_union_clean_metrics.unit_test_analytes a
+JOIN (SELECT test_id, test_name, unit_code, SUM(n) AS n
+      FROM hive_metastore.ehr_union_clean_metrics.unit_test_units
+      GROUP BY 1, 2, 3) t ON t.test_id = a.test_id
+GROUP BY a.analyte, t.test_id, t.test_name
+ORDER BY a.analyte, n DESC;
+
+-- COMMAND ----------
+
+-- 18d (Part D). Review: tests each canonical-unit rule hits. Each test should appear
+--      once, under the rule you meant.
 --      Expect: n_rules_for_test 1 on every row, each test under the rule
 --      meant for it (Body weight kg, Body height cm, Body temperature Cel,
 --      HbA1c %, 24 h urine protein mg/(24.h), urine albumin mg/dL).
@@ -417,21 +406,44 @@ ORDER BY r.test_pattern, n DESC;
 
 -- COMMAND ----------
 
--- 19a (Part D). Review: conversion decisions by method.
---      Expect: identity 5,984,535; same_base 943,360; analyte_bridge
---      65,385; no_conversion 4,643, equal to 20a's "has unit, no conversion".
-SELECT conversion_method, COUNT(*) AS n_groups, SUM(n) AS n_records
-FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions
+-- 19a (Part D). Review: conversion decisions by method, counted on the
+--      records of measurement_unit_harmonized; a group is a (partner,
+--      test, unit). It doesn't sum unit_conversion_decisions' n, which
+--      includes the MacTel records (H moves them out after D).
+--      Expect: identity 5,556,849; same_base 920,376; analyte_bridge
+--      56,202; no_conversion 3,534, equal to 20a's "has unit, no conversion".
+SELECT unit_conversion_method AS conversion_method,
+       COUNT(DISTINCT data_partner_id,
+             CASE WHEN COALESCE(harmonized_measurement_concept_id, 0) = 0
+                  THEN concat('src:', measurement_source_value)
+                  ELSE CAST(harmonized_measurement_concept_id AS STRING) END,
+             inferred_unit_concept_id) AS n_groups,
+       COUNT(*) AS n_records
+FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
+WHERE unit_conversion_method IS NOT NULL
 GROUP BY 1 ORDER BY n_records DESC;
 
 -- COMMAND ----------
 
--- 19d (Part D). Review: (partner, test, unit) with no conversion to the
---      canonical unit.
+-- 19b (Part D). Review: canonical unit for every test that has more than one unit.
+--      Look for canonical units you'd not choose; add them to 17c.
+SELECT test_name, canonical_unit_code, canonical_source, SUM(n) AS n,
+       array_join(collect_list(concat_ws(' ', concat(CAST(data_partner_id AS STRING), ':'),
+                                         unit_code,
+                                         CAST(n AS STRING), conversion_method)), '; ') AS units
+FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions
+GROUP BY test_id, test_name, canonical_unit_code, canonical_source
+HAVING COUNT(DISTINCT unit_concept_id) > 1
+ORDER BY n DESC;
+
+-- COMMAND ----------
+
+-- 19d (Part D). Review: (partner, test, unit) with no conversion to the canonical unit.
+--      Compare median_raw with canonical_median to judge what the unit really is.
 --      Expect: log viral loads, Lp(a), arbitrary antibody units, and tests
 --      holding two different quantities. Nothing a factor would fix.
---      INR (canonical {ratio}) has 1,440 PT values in seconds, one s row
---      once S is corrected, half of them duplicates; dRVVT ratios sit under
+--      INR (canonical {ratio}) has 820 PT values in seconds, one s row
+--      once S is corrected, some of them duplicates (F6); dRVVT ratios sit under
 --      tests whose canonical unit is s.
 SELECT test_name, data_partner_id, unit_code, n, median_raw, canonical_unit_code, canonical_median, analyte
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_medians
@@ -440,10 +452,12 @@ ORDER BY n DESC;
 
 -- COMMAND ----------
 
--- 19e (Part D). Review: converted medians against canonical-unit medians.
---      Expect: ratios near 1 apart from small groups. Body weight, one
---      partner, [oz_av] (corrected from [lb_us], 17f), median_converted about
---      80.7 (kg).
+-- 19e (Part D). Review: do converted values look like canonical-unit values?
+--      ratio far from 1 = wrong factor, wrong analyte, or the source unit
+--      label is wrong (add a correction row, A 1g). Most extreme first.
+--      Expect: ratios near 1 apart from small groups. Body weight, two
+--      partners, [oz_av] (one partner's arrive as [oz_av], the other's as
+--      [foz_us], corrected in 17f), median_converted 80-85 (kg).
 SELECT test_name, data_partner_id, unit_code, canonical_unit_code, conversion_method, n,
        median_raw, median_converted, canonical_median, ratio
 FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_medians
@@ -452,22 +466,52 @@ ORDER BY greatest(abs(ratio), abs(try_divide(1, ratio))) DESC NULLS FIRST;
 
 -- COMMAND ----------
 
--- 19h (Part D). Check: list tests in our data whose limits can't be
---      converted to the canonical unit.
---      Expect: no rows.
-SELECT test_name, list_unit_code, canonical_unit_code, analyte
-FROM hive_metastore.ehr_union_clean_metrics.unit_plausibility_limits
-WHERE conversion_method = 'no_conversion';
+-- 19f (Part D). Review: tests whose canonical unit is a judgment call. A unit class is
+--      a set of equivalent codes (same base and factor), so mg/dL vs mmol/L
+--      counts and [iU]/L vs [U]/L doesn't. Listed: tests whose canonical
+--      unit comes from a rule, and tests where a second class holds at
+--      least 20% of records. Settle one by adding it to 17c.
+WITH d AS (
+  SELECT d.test_id, d.test_name, d.canonical_unit_code, d.canonical_source, d.n,
+         d.unit_code AS code,
+         COALESCE(concat_ws(':', f.base, CAST(f.slope AS STRING), CAST(f.intercept AS STRING)),
+                  concat('code:', d.unit_code)) AS class_key
+  FROM hive_metastore.ehr_union_clean_metrics.unit_conversion_decisions d
+  LEFT JOIN hive_metastore.ehr_union_clean_metrics.unit_factors f ON f.unit_code = d.unit_code
+),
+cls AS (
+  SELECT test_id, test_name, canonical_unit_code, canonical_source, class_key,
+         max_by(code, struct(n, code)) AS code, SUM(n) AS n
+  FROM d GROUP BY 1, 2, 3, 4, 5
+),
+ranked AS (
+  SELECT *, SUM(n) OVER (PARTITION BY test_id) AS test_n,
+         ROW_NUMBER() OVER (PARTITION BY test_id ORDER BY n DESC, code) AS rk
+  FROM cls
+)
+SELECT test_name, canonical_unit_code, canonical_source, test_n,
+       round(max(CASE WHEN rk = 1 THEN n END) / test_n, 2) AS top_share,
+       max(CASE WHEN rk = 2 THEN code END) AS runner_up,
+       round(max(CASE WHEN rk = 2 THEN n END) / test_n, 2) AS runner_up_share,
+       array_join(collect_list(concat(code, ' (', CAST(n AS STRING), ')')), ', ') AS unit_classes
+FROM ranked
+GROUP BY test_id, test_name, canonical_unit_code, canonical_source, test_n
+HAVING canonical_source = 'rule'
+    OR (count(*) > 1 AND max(CASE WHEN rk = 2 THEN n END) >= 0.2 * test_n)
+ORDER BY test_n DESC;
 
 -- COMMAND ----------
 
--- 19i (Part D). Review: groups (partner, test, unit) on a list test whose
---      median converted value is outside the plausible limits, i.e. whose
---      unit looks wrong.
+-- 19i (Part D). Review: is a group's unit wrong? Groups (partner, test, unit) on a
+--      list test whose median converted value is outside the plausible
+--      limits. A few bad values don't move a median, so a group listed here
+--      is almost certainly in another unit than its label (body weights
+--      labeled [foz_us] would be, without 17f's correction). Fix with a correction
+--      row (A 1g); nothing here changes the data. Groups with no
+--      conversion are in 19d instead.
 --      Expect: no rows. Records a correction leaves with
 --      no unit, such as one partner's urine creatinine in ug/L, have no
---      converted value. Ounces labeled [lb_us] shouldn't
---      appear: they're corrected to [oz_av] (17d).
+--      converted value.
 WITH rec AS (
   SELECT d.data_partner_id, d.test_id, d.test_name, d.unit_code,
          d.conversion_method, k.value_as_number,
@@ -494,11 +538,11 @@ ORDER BY n DESC;
 -- COMMAND ----------
 
 -- 20a (Part D). Review: numeric records by harmonization status.
---      Expect: in canonical unit 6,993,280; no UCUM unit exists 24,413
---      (specific gravity, counts, Ct values, activity coefficients, RAST
---      class); failed to find unit 5,470 (E1's methods that leave no unit,
---      5,456, plus 14 records a correction leaves with no unit); has unit,
---      no conversion 4,643 (19d, including INR's seconds records).
+--      Expect: in canonical unit 6,533,427; no UCUM unit exists 20,918
+--      (specific gravity, counts, Ct values, needle gauge, activity
+--      coefficients, RAST class); failed to find unit 5,058 (E1's methods
+--      that leave no unit, plus the {log} records a correction leaves with no
+--      unit); has unit, no conversion 3,534 (19d, including INR's seconds records).
 SELECT CASE WHEN canonical_unit_concept_id IS NOT NULL  THEN 'in canonical unit'
             WHEN harmonized_value_as_number IS NOT NULL THEN 'no UCUM unit exists'
             WHEN COALESCE(inferred_unit_concept_id, 0) <> 0 THEN 'has unit, no conversion'
@@ -511,13 +555,17 @@ GROUP BY 1 ORDER BY n DESC;
 
 -- COMMAND ----------
 
--- 20d (Part D). Review: the REDCap list against our data, one row per list
---      concept; value_plausibility counts, limits in the canonical unit.
---      Expect: 57 rows, 44 of them with records; not_checked 0 on the
+-- 20d (Part D). Review: the REDCap list against our data, one row per list concept
+--      (Part 0), matched by the harmonized concept only (a list test recorded
+--      under another concept isn't counted). Records by how they got their
+--      unit, the canonical unit next to the list's, and value_plausibility
+--      counts; limits are in the canonical unit. not_checked: numeric
+--      records with no harmonized value (no unit, no conversion, suspect).
+--      Expect: 55 rows, 42 of them with records; not_checked 0 on the
 --      rows without. Canonical units differ from the list's only as
 --      equivalent codes (mmol/L for mEq/L, [U]/L for IU/L). Implausible counts mostly in vitals: heart
---      rate 1,733, systolic BP 1,477 (most from one partner), body weight
---      478, diastolic BP 208, BMI 132; under 100 for every lab.
+--      rate 1,671, systolic BP 1,475 (most from one partner), diastolic BP
+--      207, BMI 129, body weight 121; under 100 for every lab.
 SELECT l.concept_id, l.concept_name, COALESCE(l.lookup_fields, l.mapped_fields) AS fields,
        l.list_unit_code, array_join(collect_set(t.canonical_unit_value), ', ') AS canonical_unit,
        COUNT(t.value_as_number) AS n_numeric,
@@ -541,19 +589,19 @@ ORDER BY n_numeric DESC, l.concept_name;
 
 -- COMMAND ----------
 
--- E1 (new, not in A-D). Review: numeric records by part and method, read
+-- E1. Review: numeric records by part and method, read
 --    from the target table after every apply. Parts are told apart by raw
 --    columns, as each part picks its records.
 --    Expect:
---      has unit concept: copied_from_unit_concept_id only, 5,704,371
---      A: total 205,116; unit methods 195,400; no_ucum_unit 9,628 (specific
---         gravity); suspect_concept 82; needs_review plus no_concept under 11
---      B: total 55,255; mapped_string 54,544; unmapped_string 436;
---         not_a_unit 274; no_ucum_unit under 11 (ACTIVITY COEFF)
---      C: total 1,063,064; explicit 968,631 (the 6,457 HDL/total records
---         among them, {ratio} under 3011163); no_ucum_unit 14,784; partner_unit
---         plus dataset_unit 74,172; source_name 479; not_a_quantity 3,789;
---         suspect_concept 225; needs_review 644; value_split 340
+--      has unit concept: copied_from_unit_concept_id only, about 5.04 million
+--      A: total 190,974; unit methods 185,111; no_ucum_unit 5,780 (specific
+--         gravity); suspect_concept, needs_review and no_concept together 83
+--      B: total about 232,100; mapped_string 231,597; no_ucum_unit 106;
+--         unmapped_string about 350 (rounded, as in 11b); not_a_unit 97
+--      C: total 1,097,921; explicit 1,003,567 (the HDL/total records
+--         among them, {ratio} under 3011163); no_ucum_unit 15,032; partner_unit
+--         plus dataset_unit 73,975; source_name 479; not_a_quantity 3,706;
+--         suspect_concept 225; needs_review 597; value_split 340
 SELECT CASE WHEN COALESCE(unit_concept_id, 0) <> 0 THEN 'has unit concept'
             WHEN unit_source_value IS NOT NULL      THEN 'B'
             WHEN range_high IS NOT NULL             THEN 'A'
@@ -568,43 +616,7 @@ ORDER BY 1, n DESC;
 
 -- COMMAND ----------
 
--- E2 (new, not in A-D). Check: records with a canonical unit or a
---    value_plausibility but no harmonized value. Part D sets them together,
---    and every apply clears them, so this catches stale values from an
---    earlier run.
---    Expect: no rows.
-SELECT unit_inference_method,
-       canonical_unit_concept_id IS NOT NULL AS has_canonical_unit,
-       value_plausibility IS NOT NULL AS has_plausibility,
-       COUNT(*) AS n
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
-WHERE (canonical_unit_concept_id IS NOT NULL OR value_plausibility IS NOT NULL)
-  AND harmonized_value_as_number IS NULL
-GROUP BY 1, 2, 3;
-
--- COMMAND ----------
-
--- E3 (new, not in A-D). Check: numeric records with a unit whose added
---    columns aren't all filled. Every record with a unit should have a
---    method, an inferred unit, and a conversion method; a record in its
---    canonical unit should also have canonical_unit_value. A record's
---    unit is inferred_unit_concept_id (0 = none), so records a correction
---    leaves with no unit aren't counted.
---    Expect: no rows.
-SELECT unit_inference_method, unit_conversion_method,
-       inferred_unit_concept_id IS NULL AS no_inferred_unit,
-       canonical_unit_concept_id IS NOT NULL AND canonical_unit_value IS NULL AS no_canonical_code,
-       COUNT(*) AS n
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized
-WHERE value_as_number IS NOT NULL
-  AND COALESCE(inferred_unit_concept_id, 0) <> 0
-GROUP BY 1, 2, 3, 4
-HAVING unit_inference_method IS NULL OR unit_conversion_method IS NULL
-    OR no_inferred_unit OR no_canonical_code;
-
--- COMMAND ----------
-
--- E4 (new, not in A-D). Review: records moved to another concept by
+-- E4. Review: records moved to another concept by
 --    measurement_concept_corrections (Part A, 1d), next to the records
 --    that arrived under the target concept, after D.
 --    Expect: rows with measurement_concept_id 3023884 are one partner's,
@@ -627,9 +639,10 @@ ORDER BY 1, 2, 3, n DESC;
 -- COMMAND ----------
 
 -- 20b (Part D). Review: stored body weights by test, partner and unit.
---      Expect: kg_pct medians all near 80-90. One partner's [oz_av]
---      (corrected from [lb_us]): raw median about 2,848, kg median about
---      80.7.
+--      kg_pct medians should all be near 80-90 kg. Weights arrive in kg,
+--      [lb_us], [oz_av], or [foz_us] (corrected to [oz_av], 17f).
+--      Expect: kg_pct medians all near 80-97. The [oz_av] partner's few
+--      "lbs" text records are pounds.
 SELECT test_name, data_partner_id, effective_unit_code AS unit, unit_source_value,
        unit_inference_method, COUNT(*) AS n,
        percentile_approx(value_as_number, array(0.05, 0.5, 0.95)) AS raw_pct,
@@ -641,10 +654,12 @@ ORDER BY 1, 2, n DESC;
 
 -- COMMAND ----------
 
--- 20c (Part D). Review: people with "Body weight" records in both kg and
---      [lb_us]; ratio = median converted lb record / median kg record.
---      Expect: ratio_pct median near 1 for the one partner listed. The
---      other partner's lb records are corrected to [oz_av], so it has no [lb_us] rows.
+-- 20c (Part D). Review: people with "Body weight" records in both kg and [lb_us].
+--      ratio = person's median converted lb record / median kg record.
+--      Near 1: the lb records are fine and the gap is who gets weighed in
+--      lb. Near 1.3 for everyone: the lb label or factor is wrong.
+--      Expect: ratio_pct median near 1 for the one partner listed, the only
+--      one with both kg and [lb_us] records for the same people.
 WITH w AS (
   SELECT person_id, data_partner_id, effective_unit_code AS unit,
          percentile_approx(harmonized_value_as_number, 0.5) AS kg
@@ -663,30 +678,81 @@ GROUP BY 1, 2;
 
 -- COMMAND ----------
 
--- E5 (new, not in A-D). Check: corrections written by D (17d) against
---    what unit_mapping says now. A record's unit (inferred, 0 = none)
---    should equal the view's corrected unit, and unit_corrected_from the
---    code the view corrects from. A row here is a correction not written
---    (rerun D), one written that no row makes any more (rerun the part that
---    set the record's unit, then D), or one written twice.
---    Expect: no rows.
-SELECT data_partner_id, test_name, unit_corrected_from, correction_from_code,
-       inferred_unit_source_value, effective_unit_code, COUNT(*) AS n
-FROM hive_metastore.ehr_union_clean_metrics.measurement_unit_named
-WHERE value_as_number IS NOT NULL
-  AND (effective_unit_concept_id IS DISTINCT FROM NULLIF(inferred_unit_concept_id, 0)
-       OR unit_corrected_from IS DISTINCT FROM correction_from_code
-       OR unit_corrected_from = inferred_unit_source_value)
-GROUP BY ALL
-ORDER BY n DESC;
-
--- COMMAND ----------
-
--- E6 (new, not in A-D; the unmapped rows of B's 11c). Review: unit text no
+-- E6 (the unmapped rows of 11c). Review: unit text no
 --    source or judgment row maps. Records get inferred unit 0 and no
 --    conversion, so anything a judgment row could map belongs in 1g.
---    Expect: 37 texts on 436 records.
+--    Expect: 23 texts on about 350 records.
 SELECT unit_source_value, n, tests, median
 FROM hive_metastore.ehr_union_clean_metrics.unit_mapping
 WHERE kind = 'text' AND decision = 'unmapped'
 ORDER BY n DESC;
+
+-- COMMAND ----------
+
+-- E7. Chart data: unit outcomes per lab on the REDCap list, for the status
+--    chart in charts/make_charts.py (after Bradwell et al., JAMIA 2022,
+--    doi 10.1093/jamia/ocac054). One bar per lab concept: the lookup's lab
+--    rows (forms imported and lab_results; the two LDL rows share one
+--    concept), matched by harmonized concept, numeric records, all partners
+--    pooled. Segments, first match wins:
+--      nonsensical         unit text isn't a unit, the value isn't a
+--                          quantity, or a correction left no unit
+--      no_ucum_unit        no UCUM unit exists; value kept as recorded
+--      unable_to_infer     no unit found
+--      no_conversion       has a unit, no conversion to the canonical unit
+--      source_canonical    arrived with a unit concept, already canonical
+--      source_converted    arrived with a unit concept, converted
+--      text_mapped         unit text mapped to a unit (Part B)
+--      inferred_canonical  unit inferred, already canonical
+--      inferred_converted  unit inferred, converted
+--      suppressed          segments under 11 records, merged
+--    Counts are rounded up to a multiple of 10, n_total included, so totals
+--    can't give back a small count by subtraction. A suppressed segment
+--    still under 11 after merging has n NULL. Labs with under 11 numeric
+--    records are left out, as are labs with none.
+--    This is the only per-lab table meant for sharing: check any other
+--    per-lab counts against it before publishing them (20d's counts would
+--    give back suppressed segments by subtraction).
+--    Expect: 36 labs; source_canonical the biggest segment for all but
+--    urine albumin (all converted on arrival), and BUN/creatinine ratio and
+--    A/G ratio, which are mostly inferred.
+--    Export the result as charts/lab_unit_outcomes.csv.
+WITH labs AS (
+  SELECT try_cast(target_concept_id AS BIGINT) AS concept_id,
+         array_join(sort_array(collect_set(lookup_key)), ', ') AS fields
+  FROM hive_metastore.ehr_union_clean_metrics.redcap_unit_lookup
+  WHERE form_name IN ('imported', 'lab_results')
+  GROUP BY 1
+),
+seg AS (
+  SELECT l.concept_id, l.fields,
+         CASE WHEN t.unit_inference_method IN ('not_a_unit', 'not_a_quantity')
+                OR (t.unit_corrected_from IS NOT NULL
+                    AND COALESCE(t.inferred_unit_concept_id, 0) = 0) THEN 'nonsensical'
+              WHEN t.unit_inference_method = 'no_ucum_unit'          THEN 'no_ucum_unit'
+              WHEN COALESCE(t.inferred_unit_concept_id, 0) = 0       THEN 'unable_to_infer'
+              WHEN t.harmonized_value_as_number IS NULL              THEN 'no_conversion'
+              WHEN COALESCE(t.unit_concept_id, 0) <> 0
+                THEN IF(t.unit_conversion_method = 'identity', 'source_canonical', 'source_converted')
+              WHEN t.unit_inference_method = 'mapped_string'         THEN 'text_mapped'
+              ELSE IF(t.unit_conversion_method = 'identity', 'inferred_canonical', 'inferred_converted')
+         END AS segment,
+         COUNT(*) AS n
+  FROM labs l
+  JOIN hive_metastore.ehr_union_clean_metrics.measurement_unit_harmonized t
+    ON t.harmonized_measurement_concept_id = l.concept_id AND t.value_as_number IS NOT NULL
+  GROUP BY 1, 2, 3
+),
+merged AS (
+  SELECT concept_id, fields, IF(n < 11, 'suppressed', segment) AS segment, SUM(n) AS n,
+         SUM(SUM(n)) OVER (PARTITION BY concept_id) AS n_total
+  FROM seg
+  GROUP BY 1, 2, 3
+)
+SELECT m.concept_id, c.concept_name, m.fields, m.segment,
+       IF(m.n < 11, NULL, CAST(ceil(m.n / 10) * 10 AS BIGINT)) AS n,
+       CAST(ceil(m.n_total / 10) * 10 AS BIGINT) AS n_total
+FROM merged m
+JOIN omop_vocab.concept c ON c.concept_id = m.concept_id
+WHERE m.n_total >= 11
+ORDER BY m.n_total DESC, m.concept_id, m.n DESC;

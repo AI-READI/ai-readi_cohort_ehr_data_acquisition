@@ -1,0 +1,94 @@
+concept_id,concept_name,fields,segment,n,n_total
+3013682,Urea nitrogen [Mass/volume] in Serum or Plasma,import_bun,source_canonical,39550,39910
+3013682,Urea nitrogen [Mass/volume] in Serum or Plasma,import_bun,inferred_canonical,370,39910
+3006906,Calcium [Mass/volume] in Serum or Plasma,import_calcium,source_canonical,39690,39700
+3006906,Calcium [Mass/volume] in Serum or Plasma,import_calcium,inferred_canonical,20,39700
+3016723,Creatinine [Mass/volume] in Serum or Plasma,import_creatinine,source_canonical,39540,39580
+3016723,Creatinine [Mass/volume] in Serum or Plasma,import_creatinine,inferred_canonical,40,39580
+3014576,Chloride [Moles/volume] in Serum or Plasma,import_chloride,source_canonical,26660,39470
+3014576,Chloride [Moles/volume] in Serum or Plasma,import_chloride,source_converted,12800,39470
+3014576,Chloride [Moles/volume] in Serum or Plasma,import_chloride,suppressed,,39470
+3004501,Glucose [Mass/volume] in Serum or Plasma,import_glucose,source_canonical,39370,39380
+3004501,Glucose [Mass/volume] in Serum or Plasma,import_glucose,suppressed,,39380
+3023103,Potassium [Moles/volume] in Serum or Plasma,import_potassium,source_canonical,25030,37920
+3023103,Potassium [Moles/volume] in Serum or Plasma,import_potassium,source_converted,12850,37920
+3023103,Potassium [Moles/volume] in Serum or Plasma,import_potassium,inferred_canonical,40,37920
+3023103,Potassium [Moles/volume] in Serum or Plasma,import_potassium,suppressed,,37920
+3019550,Sodium [Moles/volume] in Serum or Plasma,import_sodium,source_canonical,24460,37300
+3019550,Sodium [Moles/volume] in Serum or Plasma,import_sodium,source_converted,12830,37300
+3019550,Sodium [Moles/volume] in Serum or Plasma,import_sodium,suppressed,,37300
+3015632,"Carbon dioxide, total [Moles/volume] in Serum or Plasma",import_carbon_dioxide_total,source_canonical,23180,36000
+3015632,"Carbon dioxide, total [Moles/volume] in Serum or Plasma",import_carbon_dioxide_total,source_converted,12800,36000
+3015632,"Carbon dioxide, total [Moles/volume] in Serum or Plasma",import_carbon_dioxide_total,inferred_converted,20,36000
+3015632,"Carbon dioxide, total [Moles/volume] in Serum or Plasma",import_carbon_dioxide_total,suppressed,,36000
+3000905,Leukocytes [#/volume] in Blood by Automated count,lbscat_wbc,source_canonical,22490,32610
+3000905,Leukocytes [#/volume] in Blood by Automated count,lbscat_wbc,source_converted,9770,32610
+3000905,Leukocytes [#/volume] in Blood by Automated count,lbscat_wbc,inferred_converted,350,32610
+3000905,Leukocytes [#/volume] in Blood by Automated count,lbscat_wbc,suppressed,,32610
+3023599,MCV [Entitic mean volume] in Red Blood Cells by Automated count,lbscat_mcv,source_canonical,31690,32000
+3023599,MCV [Entitic mean volume] in Red Blood Cells by Automated count,lbscat_mcv,inferred_canonical,320,32000
+3023599,MCV [Entitic mean volume] in Red Blood Cells by Automated count,lbscat_mcv,suppressed,,32000
+3012030,MCH [Entitic mass] by Automated count,lbscat_mch,source_canonical,31670,32000
+3012030,MCH [Entitic mass] by Automated count,lbscat_mch,inferred_canonical,330,32000
+3012030,MCH [Entitic mass] by Automated count,lbscat_mch,suppressed,,32000
+3020416,Erythrocytes [#/volume] in Blood by Automated count,lbscat_rbc,source_canonical,22490,31830
+3020416,Erythrocytes [#/volume] in Blood by Automated count,lbscat_rbc,source_converted,9210,31830
+3020416,Erythrocytes [#/volume] in Blood by Automated count,lbscat_rbc,inferred_converted,130,31830
+3020416,Erythrocytes [#/volume] in Blood by Automated count,lbscat_rbc,suppressed,,31830
+3009744,MCHC [Entitic Mass/volume] in Red Blood Cells by Automated count,lbscat_mchc,source_canonical,31670,31760
+3009744,MCHC [Entitic Mass/volume] in Red Blood Cells by Automated count,lbscat_mchc,inferred_canonical,90,31760
+3009744,MCHC [Entitic Mass/volume] in Red Blood Cells by Automated count,lbscat_mchc,suppressed,,31760
+3019897,Erythrocyte [DistWidth] in Blood by Automated count,lbscat_rdw,source_canonical,28880,28900
+3019897,Erythrocyte [DistWidth] in Blood by Automated count,lbscat_rdw,inferred_canonical,30,28900
+3000963,Hemoglobin [Mass/volume] in Blood,lbscat_hgb,source_canonical,28850,28880
+3000963,Hemoglobin [Mass/volume] in Blood,lbscat_hgb,inferred_canonical,30,28880
+3024929,Platelets [#/volume] in Blood by Automated count,lbscat_plt,source_canonical,18170,27410
+3024929,Platelets [#/volume] in Blood by Automated count,lbscat_plt,source_converted,9230,27410
+3024929,Platelets [#/volume] in Blood by Automated count,lbscat_plt,inferred_converted,20,27410
+3024929,Platelets [#/volume] in Blood by Automated count,lbscat_plt,suppressed,,27410
+3023314,Hematocrit [Volume Fraction] of Blood by Automated count,lbscat_hct,source_canonical,27190,27200
+3023314,Hematocrit [Volume Fraction] of Blood by Automated count,lbscat_hct,suppressed,,27200
+3020630,Protein [Mass/volume] in Serum or Plasma,import_protein_total,source_canonical,25140,25160
+3020630,Protein [Mass/volume] in Serum or Plasma,import_protein_total,inferred_canonical,20,25160
+3013721,Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma,import_ast_got,source_canonical,24820,25050
+3013721,Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma,import_ast_got,source_converted,230,25050
+3013721,Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma,import_ast_got,inferred_canonical,20,25050
+3035995,Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma,import_alkaline_phosphatase,source_canonical,24720,24960
+3035995,Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma,import_alkaline_phosphatase,source_converted,230,24960
+3035995,Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma,import_alkaline_phosphatase,inferred_canonical,20,24960
+3035995,Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma,import_alkaline_phosphatase,suppressed,,24960
+3024128,Bilirubin.total [Mass/volume] in Serum or Plasma,import_bilirubin_total,source_canonical,24900,24910
+3024128,Bilirubin.total [Mass/volume] in Serum or Plasma,import_bilirubin_total,inferred_canonical,20,24910
+3024561,Albumin [Mass/volume] in Serum or Plasma,import_albumin,source_canonical,24490,24500
+3024561,Albumin [Mass/volume] in Serum or Plasma,import_albumin,suppressed,,24500
+3006923,Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma,import_alt_got,source_canonical,22290,22310
+3006923,Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma,import_alt_got,source_converted,20,22310
+3006923,Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma,import_alt_got,suppressed,,22310
+3004410,Hemoglobin A1c/Hemoglobin.total in Blood,import_hba1c,source_canonical,18290,18710
+3004410,Hemoglobin A1c/Hemoglobin.total in Blood,import_hba1c,inferred_canonical,360,18710
+3004410,Hemoglobin A1c/Hemoglobin.total in Blood,import_hba1c,source_converted,60,18710
+3004410,Hemoglobin A1c/Hemoglobin.total in Blood,import_hba1c,suppressed,20,18710
+3022192,Triglyceride [Mass/volume] in Serum or Plasma,import_triglycerides,source_canonical,14930,14940
+3022192,Triglyceride [Mass/volume] in Serum or Plasma,import_triglycerides,suppressed,,14940
+3007070,Cholesterol in HDL [Mass/volume] in Serum or Plasma,import_hdl_cholesterol,source_canonical,14830,14930
+3007070,Cholesterol in HDL [Mass/volume] in Serum or Plasma,import_hdl_cholesterol,inferred_canonical,100,14930
+3027114,Cholesterol [Mass/volume] in Serum or Plasma,import_total_cholesterol,source_canonical,14850,14860
+3027114,Cholesterol [Mass/volume] in Serum or Plasma,import_total_cholesterol,suppressed,,14860
+3028288,Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation,"import_ldl_cholesterol, import_ldl_cholesterol_calculation",source_canonical,7700,7820
+3028288,Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation,"import_ldl_cholesterol, import_ldl_cholesterol_calculation",inferred_canonical,80,7820
+3028288,Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation,"import_ldl_cholesterol, import_ldl_cholesterol_calculation",source_converted,50,7820
+3017250,Creatinine [Mass/volume] in Urine,import_urine_creatinine,source_canonical,3070,3080
+3017250,Creatinine [Mass/volume] in Urine,import_urine_creatinine,inferred_canonical,20,3080
+3017250,Creatinine [Mass/volume] in Urine,import_urine_creatinine,suppressed,,3080
+3012516,Albumin [Mass/volume] in Urine,import_urine_albumin,source_converted,2440,2440
+3012516,Albumin [Mass/volume] in Urine,import_urine_albumin,suppressed,,2440
+40769783,Troponin T.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method,import_troponin_t,source_canonical,2360,2360
+3010156,C reactive protein [Mass/volume] in Serum or Plasma by High sensitivity method,import_crp_hs,source_canonical,1250,1260
+3010156,C reactive protein [Mass/volume] in Serum or Plasma by High sensitivity method,import_crp_hs,suppressed,,1260
+3020509,Albumin/Globulin [Mass Ratio] in Serum or Plasma,import_ag_ratio,inferred_canonical,210,280
+3020509,Albumin/Globulin [Mass Ratio] in Serum or Plasma,import_ag_ratio,source_converted,70,280
+3020509,Albumin/Globulin [Mass Ratio] in Serum or Plasma,import_ag_ratio,suppressed,,280
+3018311,Urea nitrogen/Creatinine [Mass Ratio] in Serum or Plasma,import_bun_creatinine_ratio,inferred_canonical,260,270
+3018311,Urea nitrogen/Creatinine [Mass Ratio] in Serum or Plasma,import_bun_creatinine_ratio,suppressed,,270
+3010084,C peptide [Mass/volume] in Serum or Plasma,import_c_peptide,source_canonical,140,140
+3029187,Natriuretic peptide.B prohormone N-Terminal [Mass/volume] in Serum or Plasma,import_nt_probnp,source_canonical,70,70

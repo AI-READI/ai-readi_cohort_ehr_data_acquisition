@@ -16,3 +16,4 @@ Biomedical Informatics and Data Science Section
 - Ms. Stephanie S. Hong  
 - Ms. Yvette Chen  
 - Ms. Monique Bangudi
+- Dr. Sigfried Gold

@@ -1,0 +1,37 @@
+lab,fields,records,source_canonical,source_canonical_pct,source_converted,source_converted_pct,inferred_canonical,inferred_canonical_pct,inferred_converted,inferred_converted_pct,suppressed,suppressed_pct
+"Albumin, urine",import_urine_albumin,2440,0,0.0,2440,100.0,0,0.0,0,0.0,<11,
+Albumin/Globulin,import_ag_ratio,280,0,0.0,70,25.0,210,75.0,0,0.0,<11,
+Urea nitrogen/Creatinine,import_bun_creatinine_ratio,270,0,0.0,0,0.0,260,100.0,0,0.0,<11,
+"Carbon dioxide, total",import_carbon_dioxide_total,36000,23180,64.39,12800,35.56,0,0.0,20,0.06,<11,
+Sodium,import_sodium,37300,24460,65.59,12830,34.41,0,0.0,0,0.0,<11,
+Potassium,import_potassium,37920,25030,66.01,12850,33.89,40,0.11,0,0.0,<11,
+Platelets,lbscat_plt,27410,18170,66.27,9230,33.66,0,0.0,20,0.07,<11,
+Chloride,import_chloride,39470,26660,67.56,12800,32.44,0,0.0,0,0.0,<11,
+Leukocytes,lbscat_wbc,32610,22490,68.97,9770,29.96,0,0.0,350,1.07,<11,
+Erythrocytes,lbscat_rbc,31830,22490,70.66,9210,28.93,0,0.0,130,0.41,<11,
+"Hemoglobin A1c/Hemoglobin, total",import_hba1c,18710,18290,97.65,60,0.32,360,1.92,0,0.0,20,0.11
+Cholesterol in LDL,"import_ldl_cholesterol, import_ldl_cholesterol_calculation",7820,7700,98.34,50,0.64,80,1.02,0,0.0,0,0.0
+MCH,lbscat_mch,32000,31670,98.97,0,0.0,330,1.03,0,0.0,<11,
+Alkaline phosphatase,import_alkaline_phosphatase,24960,24720,99.0,230,0.92,20,0.08,0,0.0,<11,
+MCV,lbscat_mcv,32000,31690,99.0,0,0.0,320,1.0,0,0.0,<11,
+Aspartate aminotransferase,import_ast_got,25050,24820,99.0,230,0.92,20,0.08,0,0.0,0,0.0
+Urea nitrogen,import_bun,39910,39550,99.07,0,0.0,370,0.93,0,0.0,0,0.0
+Cholesterol in HDL,import_hdl_cholesterol,14930,14830,99.33,0,0.0,100,0.67,0,0.0,0,0.0
+"Creatinine, urine",import_urine_creatinine,3080,3070,99.35,0,0.0,20,0.65,0,0.0,<11,
+MCHC,lbscat_mchc,31760,31670,99.72,0,0.0,90,0.28,0,0.0,<11,
+Hemoglobin,lbscat_hgb,28880,28850,99.9,0,0.0,30,0.1,0,0.0,0,0.0
+RDW,lbscat_rdw,28900,28880,99.9,0,0.0,30,0.1,0,0.0,0,0.0
+Creatinine,import_creatinine,39580,39540,99.9,0,0.0,40,0.1,0,0.0,0,0.0
+Alanine aminotransferase,import_alt_got,22310,22290,99.91,20,0.09,0,0.0,0,0.0,<11,
+"Bilirubin, total",import_bilirubin_total,24910,24900,99.92,0,0.0,20,0.08,0,0.0,0,0.0
+Protein,import_protein_total,25160,25140,99.92,0,0.0,20,0.08,0,0.0,0,0.0
+Calcium,import_calcium,39700,39690,99.95,0,0.0,20,0.05,0,0.0,0,0.0
+Glucose,import_glucose,39380,39370,100.0,0,0.0,0,0.0,0,0.0,<11,
+Hematocrit,lbscat_hct,27200,27190,100.0,0,0.0,0,0.0,0,0.0,<11,
+Albumin,import_albumin,24500,24490,100.0,0,0.0,0,0.0,0,0.0,<11,
+Triglyceride,import_triglycerides,14940,14930,100.0,0,0.0,0,0.0,0,0.0,<11,
+Cholesterol,import_total_cholesterol,14860,14850,100.0,0,0.0,0,0.0,0,0.0,<11,
+"Troponin T, cardiac (hs)",import_troponin_t,2360,2360,100.0,0,0.0,0,0.0,0,0.0,0,0.0
+C reactive protein (hs),import_crp_hs,1260,1250,100.0,0,0.0,0,0.0,0,0.0,<11,
+C peptide,import_c_peptide,140,140,100.0,0,0.0,0,0.0,0,0.0,0,0.0
+NT-proBNP,import_nt_probnp,70,70,100.0,0,0.0,0,0.0,0,0.0,0,0.0
